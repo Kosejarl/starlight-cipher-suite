@@ -10,13 +10,13 @@
   "categories": ["utilities", "education"],
   "icons": [
     {
-      "src": "icon.png",
+      "src": "icon.png?v=8",
       "sizes": "192x192 256x256 512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon.svg",
+      "src": "icon.svg?v=8",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

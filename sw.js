@@ -5,10 +5,10 @@ const ASSETS_TO_CACHE = [
   './styles.css',
   './ciphers.js',
   './app.js',
-  './manifest.json',
-  './logo.png',
-  './icon.png',
-  './icon.svg',
+  './manifest.json?v=8',
+  './logo.png?v=8',
+  './icon.png?v=8',
+  './icon.svg?v=8',
   'https://unpkg.com/lucide@latest'
 ];
 
