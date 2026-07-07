@@ -13,6 +13,7 @@ import {
     BinaryReverse,
     ScandiCaesar
 } from './ciphers.js';
+import { COMMON_WORDS } from './dictionary.js';
 
 // Application State
 const state = {
@@ -20,8 +21,7 @@ const state = {
     mode: 'encode',
     retainPunctuation: true,
     showProcess: true,
-    history: [],
-    anagramShuffledLetters: []
+    history: []
 };
 
 // DOM Elements
@@ -51,9 +51,8 @@ const elements = {
     vigenereKey: document.getElementById('vigenere-key'),
     railfenceRails: document.getElementById('railfence-rails'),
     
-    anagramPool: document.getElementById('anagram-pool'),
+    anagramSuggestions: document.getElementById('anagram-suggestions'),
     btnShuffleOutput: document.getElementById('btn-shuffle-output'),
-    anagramStatus: document.getElementById('anagram-status'),
     
     textInput: document.getElementById('text-input'),
     textOutput: document.getElementById('text-output'),
@@ -206,16 +205,27 @@ function showActiveParameterGroup() {
     elements.paramAnagram.classList.remove('active-param');
     elements.paramNone.classList.remove('active-param');
 
-    // Show correct one and handle output textarea readonly status and shuffle button
+    // Show correct one and handle output panel layout based on state
     if (state.cipher === 'anagram') {
-        elements.textOutput.readOnly = false;
-        elements.textOutput.placeholder = "Type your anagram here or click tiles above...";
-        elements.btnShuffleOutput.classList.remove('hidden');
-        // Auto-scramble on first load if output is empty
-        if (!elements.textOutput.value && elements.textInput.value) {
-            scrambleInputToOutput();
+        if (state.mode === 'encode') {
+            elements.textOutput.classList.remove('hidden');
+            elements.anagramSuggestions.classList.add('hidden');
+            elements.textOutput.readOnly = false;
+            elements.textOutput.placeholder = "Type your anagram here...";
+            elements.btnShuffleOutput.classList.remove('hidden');
+            // Auto-scramble on first load if output is empty
+            if (!elements.textOutput.value && elements.textInput.value) {
+                scrambleInputToOutput();
+            }
+        } else {
+            // Decrypt Mode: Solver layout
+            elements.textOutput.classList.add('hidden');
+            elements.anagramSuggestions.classList.remove('hidden');
+            elements.btnShuffleOutput.classList.add('hidden');
         }
     } else {
+        elements.textOutput.classList.remove('hidden');
+        elements.anagramSuggestions.classList.add('hidden');
         elements.textOutput.readOnly = true;
         elements.textOutput.placeholder = "Ciphertext output will appear here...";
         elements.btnShuffleOutput.classList.add('hidden');
@@ -490,52 +500,136 @@ function runConversion() {
     }
 
     if (state.cipher === 'anagram') {
-        updateAnagramSourceLetters();
-        renderAnagramPool();
+        const input = elements.textInput.value || '';
+        const cleanInput = input.toLowerCase();
         
-        const sourceCounts = {};
-        for (const charInfo of state.anagramShuffledLetters) {
-            const c = charInfo.char.toLowerCase();
-            sourceCounts[c] = (sourceCounts[c] || 0) + 1;
-        }
-        
-        const outputText = elements.textOutput.value || '';
-        const usedCounts = {};
-        for (const char of outputText.toLowerCase()) {
+        // Count letters in the input
+        const inputCounts = {};
+        let inputLetterCount = 0;
+        for (const char of cleanInput) {
             if (/[a-z0-9æøåäö]/.test(char)) {
-                usedCounts[char] = (usedCounts[char] || 0) + 1;
+                inputCounts[char] = (inputCounts[char] || 0) + 1;
+                inputLetterCount++;
             }
         }
         
-        const remainingList = [];
-        const excessList = [];
-        const tempSource = { ...sourceCounts };
+        if (state.mode === 'encode') {
+            const totalUsed = inputLetterCount;
+            const logContent = `Mode: Anagram Helper (Encrypt)\n\n` +
+                `Input Text:  "${input}"\n` +
+                `Letters count: ${totalUsed}\n\n` +
+                `Edit the output panel directly or click the Shuffle icon in the header to randomize.`;
+            renderProcessLog({
+                success: true,
+                content: logContent,
+                steps: []
+            });
+            return;
+        }
         
-        for (const [char, count] of Object.entries(usedCounts)) {
-            if (tempSource[char]) {
-                const matched = Math.min(tempSource[char], count);
-                tempSource[char] -= matched;
-                if (count > matched) {
-                    excessList.push(`${char.toUpperCase()} (x${count - matched})`);
+        // Decrypt Mode (Anagram Solver)
+        const matches = [];
+        for (const word of COMMON_WORDS) {
+            const wordLower = word.toLowerCase();
+            if (wordLower.length > inputLetterCount || wordLower.length < 3) continue;
+            
+            const wordCounts = {};
+            let isPossible = true;
+            for (const char of wordLower) {
+                wordCounts[char] = (wordCounts[char] || 0) + 1;
+                if (!inputCounts[char] || wordCounts[char] > inputCounts[char]) {
+                    isPossible = false;
+                    break;
                 }
-            } else {
-                excessList.push(`${char.toUpperCase()} (x${count})`);
+            }
+            if (isPossible) {
+                matches.push(wordLower);
             }
         }
         
-        for (const [char, count] of Object.entries(tempSource)) {
-            if (count > 0) {
-                remainingList.push(`${char.toUpperCase()} (x${count})`);
+        // Group matches by length
+        const groups = {};
+        for (const word of matches) {
+            const len = word.length;
+            if (!groups[len]) groups[len] = [];
+            if (!groups[len].includes(word)) {
+                groups[len].push(word);
             }
         }
         
-        const totalUsed = Object.values(usedCounts).reduce((a, b) => a + b, 0);
-        const logContent = `Mode: Anagram Helper\n\n` +
-            `Source Characters Pool:\n` +
-            (state.anagramShuffledLetters.length > 0 ? state.anagramShuffledLetters.map(l => l.char).join(' ') : 'None') + '\n\n' +
-            `Used Characters:  ${totalUsed}\n` +
-            `Remaining:        ${remainingList.join(', ') || 'None'}\n` +
-            `Excess/Invalid:   ${excessList.join(', ') || 'None'}`;
+        // Generate 3 random shuffles
+        const shuffles = [];
+        for (let s = 0; s < 3; s++) {
+            shuffles.push(generateScrambleString(input));
+        }
+        
+        // Build suggestions HTML
+        let html = '';
+        
+        // Section 1: Scrambled Variations
+        html += `
+            <div style="margin-bottom: 8px;">
+                <h4 style="font-size: 13px; font-weight: 600; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="shuffle" style="width: 14px; height: 14px;"></i> Inspiration Variations
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+        `;
+        shuffles.forEach(shuf => {
+            html += `
+                <div style="padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; font-family: monospace; font-size: 14px; letter-spacing: 0.05em; color: var(--color-text-primary); display: flex; justify-content: space-between; align-items: center;">
+                    <span>${shuf}</span>
+                    <button class="icon-btn-sm" style="background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.4);" onclick="navigator.clipboard.writeText('${shuf.replace(/'/g, "\\'")}')" title="Copy variation">
+                        <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            `;
+        });
+        html += `
+                </div>
+            </div>
+        `;
+        
+        // Section 2: Word Suggestions
+        html += `
+            <div>
+                <h4 style="font-size: 13px; font-weight: 600; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; margin-top: 0; display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="book-open" style="width: 14px; height: 14px;"></i> Common Word Matches
+                </h4>
+        `;
+        
+        const sortedLengths = Object.keys(groups).map(Number).sort((a, b) => b - a);
+        
+        if (sortedLengths.length === 0) {
+            html += `<p style="font-size: 12px; color: rgba(255,255,255,0.4); font-style: italic; margin: 0;">No common words can be formed from these letters.</p>`;
+        } else {
+            html += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+            sortedLengths.forEach(len => {
+                const words = groups[len].sort();
+                html += `
+                    <div style="padding: 10px 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04); border-radius: 6px;">
+                        <span style="font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; display: block; margin-bottom: 6px;">${len}-Letter Words</span>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                `;
+                words.forEach(word => {
+                    html += `<span style="font-size: 13px; padding: 3px 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 4px; color: #10b981; font-family: monospace;">${word}</span>`;
+                });
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+        html += `</div>`;
+        
+        elements.anagramSuggestions.innerHTML = html;
+        if (window.lucide) window.lucide.createIcons();
+        
+        const logContent = `Mode: Anagram Helper (Decrypt)\n\n` +
+            `Scrambled Input: "${input}"\n` +
+            `Available Letters: ${inputLetterCount}\n\n` +
+            `Anagram solving completed successfully.\n` +
+            `Found ${matches.length} possible dictionary word matches.`;
             
         renderProcessLog({
             success: true,
@@ -543,7 +637,7 @@ function runConversion() {
             steps: []
         });
         
-        elements.outputStats.textContent = `${outputText.length} characters`;
+        elements.outputStats.textContent = `${matches.length} matches found`;
         return;
     }
 
@@ -834,148 +928,10 @@ function escapeHtml(str) {
  * Register Service Worker for offline capability
  */
 /**
- * Helper to update Anagram source letter pool
+ * Generate a scrambled variation of a string maintaining spaces
  */
-function updateAnagramSourceLetters() {
-    const inputText = elements.textInput.value || '';
-    const letters = [];
-    for (let i = 0; i < inputText.length; i++) {
-        const char = inputText[i];
-        if (/[a-zA-Z0-9æøåÆØÅäöÄÖ]/.test(char)) {
-            letters.push({
-                id: i,
-                char: char
-            });
-        }
-    }
-    
-    // Sort to compare contents
-    const currentChars = state.anagramShuffledLetters.map(l => l.char).sort().join('');
-    const newChars = letters.map(l => l.char).sort().join('');
-    
-    if (currentChars !== newChars) {
-        state.anagramShuffledLetters = letters;
-    }
-}
-
-/**
- * Render the Anagram letter inventory tiles
- */
-function renderAnagramPool() {
-    elements.anagramPool.innerHTML = '';
-    
-    if (state.anagramShuffledLetters.length === 0) {
-        elements.anagramPool.innerHTML = '<div style="color: rgba(255,255,255,0.4); font-size:12px;">No letters available. Enter input text first.</div>';
-        return;
-    }
-    
-    // Count how many copies of each letter are used in output
-    const outputText = elements.textOutput.value || '';
-    const usedCounts = {};
-    for (const char of outputText.toLowerCase()) {
-        if (/[a-z0-9æøåäö]/.test(char)) {
-            usedCounts[char] = (usedCounts[char] || 0) + 1;
-        }
-    }
-    
-    const tempUsed = { ...usedCounts };
-    
-    state.anagramShuffledLetters.forEach((charInfo) => {
-        const tile = document.createElement('div');
-        tile.className = 'anagram-tile';
-        tile.textContent = charInfo.char;
-        
-        const key = charInfo.char.toLowerCase();
-        if (tempUsed[key] && tempUsed[key] > 0) {
-            tile.classList.add('used');
-            tempUsed[key]--;
-        }
-        
-        // Append letter on click
-        tile.addEventListener('click', () => {
-            elements.textOutput.value += charInfo.char;
-            elements.textOutput.dispatchEvent(new Event('input'));
-        });
-        
-        elements.anagramPool.appendChild(tile);
-    });
-    
-    updateAnagramStatus(usedCounts);
-}
-
-/**
- * Update Anagram status alerts
- */
-function updateAnagramStatus(usedCounts) {
-    const inputText = elements.textInput.value || '';
-    
-    // Get source counts
-    const sourceCounts = {};
-    let totalSourceLetters = 0;
-    for (const char of inputText.toLowerCase()) {
-        if (/[a-z0-9æøåäö]/.test(char)) {
-            sourceCounts[char] = (sourceCounts[char] || 0) + 1;
-            totalSourceLetters++;
-        }
-    }
-    
-    if (totalSourceLetters === 0) {
-        elements.anagramStatus.innerHTML = '<i data-lucide="info" style="width: 14px; height: 14px;"></i> Enter some text in the input box to start.';
-        if (window.lucide) window.lucide.createIcons();
-        return;
-    }
-    
-    let totalUsedLetters = 0;
-    let hasExcess = false;
-    
-    for (const [char, count] of Object.entries(usedCounts)) {
-        totalUsedLetters += count;
-        if (!sourceCounts[char] || count > sourceCounts[char]) {
-            hasExcess = true;
-        }
-    }
-    
-    if (hasExcess) {
-        elements.anagramStatus.innerHTML = '<i data-lucide="alert-triangle" style="width: 14px; height: 14px; color: #ef4444;"></i> Invalid: Contains extra or incorrect letters!';
-        elements.anagramStatus.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-        elements.anagramStatus.style.color = '#ef4444';
-    } else if (totalUsedLetters === totalSourceLetters) {
-        elements.anagramStatus.innerHTML = '<i data-lucide="check-circle" style="width: 14px; height: 14px; color: #10b981;"></i> Perfect Anagram!';
-        elements.anagramStatus.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        elements.anagramStatus.style.color = '#10b981';
-    } else {
-        const remaining = totalSourceLetters - totalUsedLetters;
-        elements.anagramStatus.innerHTML = `<i data-lucide="info" style="width: 14px; height: 14px; color: #f59e0b;"></i> Valid so far. ${remaining} letter${remaining > 1 ? 's' : ''} remaining.`;
-        elements.anagramStatus.style.borderColor = 'rgba(245, 158, 11, 0.3)';
-        elements.anagramStatus.style.color = '#f59e0b';
-    }
-    
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
-}
-
-/**
- * Shuffle the anagram pool
- */
-function shuffleAnagramPool() {
-    const letters = [...state.anagramShuffledLetters];
-    for (let i = letters.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [letters[i], letters[j]] = [letters[j], letters[i]];
-    }
-    state.anagramShuffledLetters = letters;
-    renderAnagramPool();
-}
-
-/**
- * Scramble input letters and put them in the output text area, maintaining spaces
- */
-function scrambleInputToOutput() {
-    const input = elements.textInput.value || '';
+function generateScrambleString(input) {
     const nonSpaceChars = [];
-    
-    // Collect all non-space letters/digits
     for (let i = 0; i < input.length; i++) {
         const char = input[i];
         if (/[a-zA-Z0-9æøåÆØÅäöÄÖ]/.test(char)) {
@@ -983,13 +939,11 @@ function scrambleInputToOutput() {
         }
     }
     
-    // Fisher-Yates Shuffle on non-space chars
     for (let i = nonSpaceChars.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [nonSpaceChars[i], nonSpaceChars[j]] = [nonSpaceChars[j], nonSpaceChars[i]];
     }
     
-    // Reconstruct string maintaining space positions
     const result = [];
     let nonSpaceIndex = 0;
     for (let i = 0; i < input.length; i++) {
@@ -1002,8 +956,16 @@ function scrambleInputToOutput() {
             result.push(char);
         }
     }
-    
-    elements.textOutput.value = result.join('');
+    return result.join('');
+}
+
+/**
+ * Scramble input letters and put them in the output text area, maintaining spaces
+ */
+function scrambleInputToOutput() {
+    const input = elements.textInput.value || '';
+    const scrambled = generateScrambleString(input);
+    elements.textOutput.value = scrambled;
     elements.textOutput.dispatchEvent(new Event('input'));
 }
 
