@@ -52,7 +52,7 @@ const elements = {
     railfenceRails: document.getElementById('railfence-rails'),
     
     anagramPool: document.getElementById('anagram-pool'),
-    btnShuffleAnagram: document.getElementById('btn-shuffle-anagram'),
+    btnShuffleOutput: document.getElementById('btn-shuffle-output'),
     anagramStatus: document.getElementById('anagram-status'),
     
     textInput: document.getElementById('text-input'),
@@ -206,13 +206,19 @@ function showActiveParameterGroup() {
     elements.paramAnagram.classList.remove('active-param');
     elements.paramNone.classList.remove('active-param');
 
-    // Show correct one and handle output textarea readonly status
+    // Show correct one and handle output textarea readonly status and shuffle button
     if (state.cipher === 'anagram') {
         elements.textOutput.readOnly = false;
         elements.textOutput.placeholder = "Type your anagram here or click tiles above...";
+        elements.btnShuffleOutput.classList.remove('hidden');
+        // Auto-scramble on first load if output is empty
+        if (!elements.textOutput.value && elements.textInput.value) {
+            scrambleInputToOutput();
+        }
     } else {
         elements.textOutput.readOnly = true;
         elements.textOutput.placeholder = "Ciphertext output will appear here...";
+        elements.btnShuffleOutput.classList.add('hidden');
     }
 
     switch (state.cipher) {
@@ -323,7 +329,11 @@ function bindEvents() {
     // TextArea Events
     elements.textInput.addEventListener('input', () => {
         elements.inputStats.textContent = `${elements.textInput.value.length} characters`;
-        runConversion();
+        if (state.cipher === 'anagram') {
+            scrambleInputToOutput();
+        } else {
+            runConversion();
+        }
         triggerHistoryAutoSave();
     });
 
@@ -334,8 +344,8 @@ function bindEvents() {
         }
     });
 
-    elements.btnShuffleAnagram.addEventListener('click', () => {
-        shuffleAnagramPool();
+    elements.btnShuffleOutput.addEventListener('click', () => {
+        scrambleInputToOutput();
     });
 
     // Paste Action
@@ -956,6 +966,29 @@ function shuffleAnagramPool() {
     }
     state.anagramShuffledLetters = letters;
     renderAnagramPool();
+}
+
+/**
+ * Scramble input letters and put them in the output text area
+ */
+function scrambleInputToOutput() {
+    const input = elements.textInput.value || '';
+    const chars = [];
+    for (let i = 0; i < input.length; i++) {
+        const char = input[i];
+        if (/[a-zA-Z0-9æøåÆØÅäöÄÖ]/.test(char)) {
+            chars.push(char);
+        }
+    }
+    
+    // Fisher-Yates Shuffle
+    for (let i = chars.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    
+    elements.textOutput.value = chars.join('');
+    elements.textOutput.dispatchEvent(new Event('input'));
 }
 
 function registerServiceWorker() {

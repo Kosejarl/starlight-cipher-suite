@@ -156,11 +156,8 @@
 
                         <!-- Anagram Helper Parameters -->
                         <div class="param-group" id="param-anagram">
-                            <div class="anagram-control-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div class="anagram-control-row" style="margin-bottom: 8px;">
                                 <label style="margin-bottom: 0;">Letter Inventory:</label>
-                                <button id="btn-shuffle-anagram" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                                    <i data-lucide="shuffle" style="width: 12px; height: 12px;"></i>Shuffle
-                                </button>
                             </div>
                             <div id="anagram-pool" class="anagram-pool-grid" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 40px; padding: 8px; background: rgba(255, 255, 255, 0.03); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
                                 <!-- Dynamic letter tiles will be injected here -->
@@ -219,6 +216,9 @@
                         <div class="panel-header">
                             <h3>Ciphertext Output</h3>
                             <div class="header-buttons">
+                                <button id="btn-shuffle-output" class="icon-btn hidden" title="Shuffle anagram letters">
+                                    <i data-lucide="shuffle"></i>
+                                </button>
                                 <button id="btn-copy" class="icon-btn" title="Copy output">
                                     <i data-lucide="copy"></i>
                                 </button>
