@@ -49,6 +49,15 @@ class LoggingHTTPHandler(http.server.SimpleHTTPRequestHandler):
         # Explicitly serve files from the resource directory
         super().__init__(*args, directory=resource_path("."), **kwargs)
 
+    def end_headers(self):
+        # Without an explicit Cache-Control header, WebView2's Chromium engine applies
+        # heuristic freshness and may skip revalidation after a rebuild, serving a stale
+        # disk-cached copy. This forces a conditional GET (If-Modified-Since) on every
+        # request; SimpleHTTPRequestHandler already answers those with a cheap 304 when
+        # the file is unchanged, so this doesn't cost a full re-download each launch.
+        self.send_header('Cache-Control', 'no-cache')
+        super().end_headers()
+
     def log_message(self, format, *args):
         log(f"Request: {format % args}")
 
@@ -64,7 +73,7 @@ class LoggingTCPServer(socketserver.TCPServer):
 
 def main():
     global httpd, PORT
-    
+
     log("Initializing Starlight Cipher Suite Standalone Desktop Application")
     log(f"CWD: {os.getcwd()}")
     log(f"Resource path: {resource_path('.')}")
@@ -104,7 +113,7 @@ def main():
     
     # Start webview loop (blocks until window is closed)
     log("Starting webview event loop")
-    webview.start()
+    webview.start(private_mode=False, debug=False)
     log("Webview event loop exited")
     
     # Clean up server on exit

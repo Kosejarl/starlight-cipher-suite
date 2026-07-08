@@ -1,5 +1,5 @@
 /**
- * CipherCraft Core Cipher Algorithms
+ * Starlight Cipher Suite - Core Cipher Algorithms
  * All functions return an object: { result: string, steps: Array<{ title: string, content: string }> }
  */
 
@@ -32,90 +32,79 @@ function getLetterFromIndex(index, isUppercase) {
 }
 
 /**
+ * Shared per-character loop used by simple substitution ciphers (Caesar, Atbash,
+ * ScandiCaesar, Vigenere). Spaces are always preserved; other non-letter characters
+ * are retained or skipped per `retainPunctuation`. `transformLetter(char)` should
+ * return { char, step } for recognized letters, or null to fall through to the
+ * space/punctuation handling.
+ */
+function processChars(text, retainPunctuation, transformLetter) {
+    let result = '';
+    const letterSteps = [];
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const transformed = transformLetter(char, i);
+        if (transformed) {
+            result += transformed.char;
+            letterSteps.push(transformed.step);
+        } else if (char === ' ') {
+            result += ' ';
+            letterSteps.push(`Space character preserved`);
+        } else if (retainPunctuation) {
+            result += char;
+            letterSteps.push(`Punctuation '${char}' retained`);
+        } else {
+            letterSteps.push(`Punctuation '${char}' skipped`);
+        }
+    }
+
+    return { result, letterSteps };
+}
+
+/**
  * 1. CAESAR CIPHER
  */
 export const Caesar = {
     encode(text, shift, retainPunctuation) {
         shift = parseInt(shift, 10) || 0;
         shift = ((shift % 26) + 26) % 26; // Normalize shift
-        let result = '';
-        const steps = [];
-
-        steps.push({
+        const steps = [{
             title: "Configuration",
             content: `Mode: Encode\nShift Key: ${shift}\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
+        }];
+
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            if (!isLetter(char)) return null;
+            const isUppercase = isUpper(char);
+            const originalIndex = getAlphabetIndex(char);
+            const newIndex = (originalIndex + shift) % 26;
+            const encodedChar = getLetterFromIndex(newIndex, isUppercase);
+            return { char: encodedChar, step: `'${char}' (index ${originalIndex}) + Shift ${shift} -> index ${newIndex} -> '${encodedChar}'` };
         });
 
-        const letterSteps = [];
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (isLetter(char)) {
-                const isUppercase = isUpper(char);
-                const originalIndex = getAlphabetIndex(char);
-                const newIndex = (originalIndex + shift) % 26;
-                const encodedChar = getLetterFromIndex(newIndex, isUppercase);
-                result += encodedChar;
-                letterSteps.push(`'${char}' (index ${originalIndex}) + Shift ${shift} -> index ${newIndex} -> '${encodedChar}'`);
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                    letterSteps.push(`Space character preserved`);
-                } else if (retainPunctuation) {
-                    result += char;
-                    letterSteps.push(`Punctuation '${char}' retained`);
-                } else {
-                    letterSteps.push(`Punctuation '${char}' skipped`);
-                }
-            }
-        }
-
-        steps.push({
-            title: "Character Processing",
-            content: letterSteps.join('\n')
-        });
-
+        steps.push({ title: "Character Processing", content: letterSteps.join('\n') });
         return { result, steps };
     },
 
     decode(text, shift, retainPunctuation) {
         shift = parseInt(shift, 10) || 0;
         shift = ((shift % 26) + 26) % 26; // Normalize shift
-        let result = '';
-        const steps = [];
-
-        steps.push({
+        const steps = [{
             title: "Configuration",
             content: `Mode: Decode\nShift Key: ${shift}\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
+        }];
+
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            if (!isLetter(char)) return null;
+            const isUppercase = isUpper(char);
+            const originalIndex = getAlphabetIndex(char);
+            const newIndex = (originalIndex - shift + 26) % 26;
+            const decodedChar = getLetterFromIndex(newIndex, isUppercase);
+            return { char: decodedChar, step: `'${char}' (index ${originalIndex}) - Shift ${shift} -> index ${newIndex} -> '${decodedChar}'` };
         });
 
-        const letterSteps = [];
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (isLetter(char)) {
-                const isUppercase = isUpper(char);
-                const originalIndex = getAlphabetIndex(char);
-                const newIndex = (originalIndex - shift + 26) % 26;
-                const decodedChar = getLetterFromIndex(newIndex, isUppercase);
-                result += decodedChar;
-                letterSteps.push(`'${char}' (index ${originalIndex}) - Shift ${shift} -> index ${newIndex} -> '${decodedChar}'`);
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                    letterSteps.push(`Space character preserved`);
-                } else if (retainPunctuation) {
-                    result += char;
-                    letterSteps.push(`Punctuation '${char}' retained`);
-                } else {
-                    letterSteps.push(`Punctuation '${char}' skipped`);
-                }
-            }
-        }
-
-        steps.push({
-            title: "Character Processing",
-            content: letterSteps.join('\n')
-        });
-
+        steps.push({ title: "Character Processing", content: letterSteps.join('\n') });
         return { result, steps };
     }
 };
@@ -149,42 +138,21 @@ export const Rot13 = {
  */
 export const Atbash = {
     encode(text, _, retainPunctuation) {
-        let result = '';
-        const steps = [];
-
-        steps.push({
+        const steps = [{
             title: "Atbash Rule",
             content: "Atbash is a monoalphabetic substitution cipher where the alphabet is reversed:\nA <-> Z, B <-> Y, C <-> X, etc."
+        }];
+
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            if (!isLetter(char)) return null;
+            const isUppercase = isUpper(char);
+            const originalIndex = getAlphabetIndex(char);
+            const newIndex = 25 - originalIndex;
+            const encodedChar = getLetterFromIndex(newIndex, isUppercase);
+            return { char: encodedChar, step: `'${char}' (index ${originalIndex}) -> Reversed index ${newIndex} -> '${encodedChar}'` };
         });
 
-        const letterSteps = [];
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (isLetter(char)) {
-                const isUppercase = isUpper(char);
-                const originalIndex = getAlphabetIndex(char);
-                const newIndex = 25 - originalIndex;
-                const encodedChar = getLetterFromIndex(newIndex, isUppercase);
-                result += encodedChar;
-                letterSteps.push(`'${char}' (index ${originalIndex}) -> Reversed index ${newIndex} -> '${encodedChar}'`);
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                    letterSteps.push(`Space character preserved`);
-                } else if (retainPunctuation) {
-                    result += char;
-                    letterSteps.push(`Punctuation '${char}' retained`);
-                } else {
-                    letterSteps.push(`Punctuation '${char}' skipped`);
-                }
-            }
-        }
-
-        steps.push({
-            title: "Character Processing",
-            content: letterSteps.join('\n')
-        });
-
+        steps.push({ title: "Character Processing", content: letterSteps.join('\n') });
         return { result, steps };
     },
     decode(text, _, retainPunctuation) {
@@ -203,47 +171,25 @@ export const Vigenere = {
             return { result: text, steps: [{ title: "Error", content: "Keyword is empty or invalid. Please provide a key with letters." }] };
         }
 
-        let result = '';
-        const steps = [];
-        steps.push({
+        const steps = [{
             title: "Configuration",
             content: `Mode: Encode\nKeyword: ${key}\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
-        });
+        }];
 
-        const letterSteps = [];
         let keyIdx = 0;
-
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (isLetter(char)) {
-                const isUppercase = isUpper(char);
-                const plainIdx = getAlphabetIndex(char);
-                const keyChar = key[keyIdx % key.length];
-                const shift = getAlphabetIndex(keyChar);
-                const cipherIdx = (plainIdx + shift) % 26;
-                const encodedChar = getLetterFromIndex(cipherIdx, isUppercase);
-
-                result += encodedChar;
-                letterSteps.push(`'${char}' (index ${plainIdx}) + Key '${keyChar}' (shift ${shift}) -> index ${cipherIdx} -> '${encodedChar}'`);
-                keyIdx++; // Only advance key for letters
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                    letterSteps.push(`Space character preserved`);
-                } else if (retainPunctuation) {
-                    result += char;
-                    letterSteps.push(`Punctuation '${char}' retained`);
-                } else {
-                    letterSteps.push(`Punctuation '${char}' skipped`);
-                }
-            }
-        }
-
-        steps.push({
-            title: "Key Alignment & Shifts",
-            content: letterSteps.join('\n')
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            if (!isLetter(char)) return null;
+            const isUppercase = isUpper(char);
+            const plainIdx = getAlphabetIndex(char);
+            const keyChar = key[keyIdx % key.length];
+            const shift = getAlphabetIndex(keyChar);
+            const cipherIdx = (plainIdx + shift) % 26;
+            const encodedChar = getLetterFromIndex(cipherIdx, isUppercase);
+            keyIdx++; // Only advance key for letters
+            return { char: encodedChar, step: `'${char}' (index ${plainIdx}) + Key '${keyChar}' (shift ${shift}) -> index ${cipherIdx} -> '${encodedChar}'` };
         });
 
+        steps.push({ title: "Key Alignment & Shifts", content: letterSteps.join('\n') });
         return { result, steps };
     },
 
@@ -253,47 +199,25 @@ export const Vigenere = {
             return { result: text, steps: [{ title: "Error", content: "Keyword is empty or invalid. Please provide a key with letters." }] };
         }
 
-        let result = '';
-        const steps = [];
-        steps.push({
+        const steps = [{
             title: "Configuration",
             content: `Mode: Decode\nKeyword: ${key}\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
-        });
+        }];
 
-        const letterSteps = [];
         let keyIdx = 0;
-
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (isLetter(char)) {
-                const isUppercase = isUpper(char);
-                const cipherIdx = getAlphabetIndex(char);
-                const keyChar = key[keyIdx % key.length];
-                const shift = getAlphabetIndex(keyChar);
-                const plainIdx = (cipherIdx - shift + 26) % 26;
-                const decodedChar = getLetterFromIndex(plainIdx, isUppercase);
-
-                result += decodedChar;
-                letterSteps.push(`'${char}' (index ${cipherIdx}) - Key '${keyChar}' (shift ${shift}) -> index ${plainIdx} -> '${decodedChar}'`);
-                keyIdx++;
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                    letterSteps.push(`Space character preserved`);
-                } else if (retainPunctuation) {
-                    result += char;
-                    letterSteps.push(`Punctuation '${char}' retained`);
-                } else {
-                    letterSteps.push(`Punctuation '${char}' skipped`);
-                }
-            }
-        }
-
-        steps.push({
-            title: "Key Alignment & Shifts",
-            content: letterSteps.join('\n')
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            if (!isLetter(char)) return null;
+            const isUppercase = isUpper(char);
+            const cipherIdx = getAlphabetIndex(char);
+            const keyChar = key[keyIdx % key.length];
+            const shift = getAlphabetIndex(keyChar);
+            const plainIdx = (cipherIdx - shift + 26) % 26;
+            const decodedChar = getLetterFromIndex(plainIdx, isUppercase);
+            keyIdx++;
+            return { char: decodedChar, step: `'${char}' (index ${cipherIdx}) - Key '${keyChar}' (shift ${shift}) -> index ${plainIdx} -> '${decodedChar}'` };
         });
 
+        steps.push({ title: "Key Alignment & Shifts", content: letterSteps.join('\n') });
         return { result, steps };
     }
 };
@@ -818,49 +742,22 @@ export const ScandiCaesar = {
         const size = upper.length;
         shift = parseInt(shift, 10) || 0;
         shift = ((shift % size) + size) % size;
-        let result = '';
-        const steps = [];
 
-        steps.push({
+        const steps = [{
             title: "Configuration",
             content: `Mode: Encode\nVariant: ${variant === 'se' ? 'Swedish' : 'Danish/Norwegian'}\nShift Key: ${shift}\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
+        }];
+
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            const alphabetStr = upper.indexOf(char) !== -1 ? upper : (lower.indexOf(char) !== -1 ? lower : null);
+            if (!alphabetStr) return null;
+            const index = alphabetStr.indexOf(char);
+            const newIndex = (index + shift) % size;
+            const encodedChar = alphabetStr[newIndex];
+            return { char: encodedChar, step: `'${char}' (index ${index}) + Shift ${shift} -> index ${newIndex} -> '${encodedChar}'` };
         });
 
-        const letterSteps = [];
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            let index = upper.indexOf(char);
-            if (index !== -1) {
-                const newIndex = (index + shift) % size;
-                const encodedChar = upper[newIndex];
-                result += encodedChar;
-                letterSteps.push(`'${char}' (index ${index}) + Shift ${shift} -> index ${newIndex} -> '${encodedChar}'`);
-            } else {
-                index = lower.indexOf(char);
-                if (index !== -1) {
-                    const newIndex = (index + shift) % size;
-                    const encodedChar = lower[newIndex];
-                    result += encodedChar;
-                    letterSteps.push(`'${char}' (index ${index}) + Shift ${shift} -> index ${newIndex} -> '${encodedChar}'`);
-                } else {
-                    if (char === ' ') {
-                        result += ' ';
-                        letterSteps.push(`Space character preserved`);
-                    } else if (retainPunctuation) {
-                        result += char;
-                        letterSteps.push(`Punctuation '${char}' retained`);
-                    } else {
-                        letterSteps.push(`Punctuation '${char}' skipped`);
-                    }
-                }
-            }
-        }
-
-        steps.push({
-            title: "Character Processing",
-            content: letterSteps.join('\n')
-        });
-
+        steps.push({ title: "Character Processing", content: letterSteps.join('\n') });
         return { result, steps };
     },
 
@@ -871,49 +768,92 @@ export const ScandiCaesar = {
         const size = upper.length;
         shift = parseInt(shift, 10) || 0;
         shift = ((shift % size) + size) % size;
-        let result = '';
-        const steps = [];
 
-        steps.push({
+        const steps = [{
             title: "Configuration",
             content: `Mode: Decode\nVariant: ${variant === 'se' ? 'Swedish' : 'Danish/Norwegian'}\nShift Key: ${shift}\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
+        }];
+
+        const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+            const alphabetStr = upper.indexOf(char) !== -1 ? upper : (lower.indexOf(char) !== -1 ? lower : null);
+            if (!alphabetStr) return null;
+            const index = alphabetStr.indexOf(char);
+            const newIndex = (index - shift + size) % size;
+            const decodedChar = alphabetStr[newIndex];
+            return { char: decodedChar, step: `'${char}' (index ${index}) - Shift ${shift} -> index ${newIndex} -> '${decodedChar}'` };
         });
 
-        const letterSteps = [];
+        steps.push({ title: "Character Processing", content: letterSteps.join('\n') });
+        return { result, steps };
+    }
+};
+
+/**
+ * 10. THE BASEMENTEN CIPHER
+ */
+const ALPHANUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\u00e6\u00f8\u00e5\u00c6\u00d8\u00c5";
+
+export const Basementen = {
+    encode(text, key, retainPunctuation) {
+        if (!key) {
+            return { result: text, steps: [] };
+        }
+
+        let result = '';
+        let keyIdx = 0;
+
         for (let i = 0; i < text.length; i++) {
             const char = text[i];
-            let index = upper.indexOf(char);
-            if (index !== -1) {
-                const newIndex = (index - shift + size) % size;
-                const decodedChar = upper[newIndex];
-                result += decodedChar;
-                letterSteps.push(`'${char}' (index ${index}) - Shift ${shift} -> index ${newIndex} -> '${decodedChar}'`);
+            const idx = ALPHANUM.indexOf(char);
+            if (idx !== -1) {
+                const keyChar = key[keyIdx % key.length];
+                const shift = keyChar.charCodeAt(0);
+                const newIndex = (idx + shift) % ALPHANUM.length;
+                const encodedChar = ALPHANUM[newIndex];
+                
+                result += encodedChar;
+                keyIdx++;
             } else {
-                index = lower.indexOf(char);
-                if (index !== -1) {
-                    const newIndex = (index - shift + size) % size;
-                    const decodedChar = lower[newIndex];
-                    result += decodedChar;
-                    letterSteps.push(`'${char}' (index ${index}) - Shift ${shift} -> index ${newIndex} -> '${decodedChar}'`);
-                } else {
-                    if (char === ' ') {
-                        result += ' ';
-                        letterSteps.push(`Space character preserved`);
-                    } else if (retainPunctuation) {
-                        result += char;
-                        letterSteps.push(`Punctuation '${char}' retained`);
-                    } else {
-                        letterSteps.push(`Punctuation '${char}' skipped`);
-                    }
+                if (char === ' ') {
+                    result += ' ';
+                } else if (retainPunctuation) {
+                    result += char;
                 }
             }
         }
 
-        steps.push({
-            title: "Character Processing",
-            content: letterSteps.join('\n')
-        });
+        return { result, steps: [] };
+    },
 
-        return { result, steps };
+    decode(text, key, retainPunctuation) {
+        if (!key) {
+            return { result: text, steps: [] };
+        }
+
+        let result = '';
+        let keyIdx = 0;
+
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const idx = ALPHANUM.indexOf(char);
+            if (idx !== -1) {
+                const keyChar = key[keyIdx % key.length];
+                const shift = keyChar.charCodeAt(0);
+                const newIndex = ((idx - shift) % ALPHANUM.length + ALPHANUM.length) % ALPHANUM.length;
+                const decodedChar = ALPHANUM[newIndex];
+                
+                result += decodedChar;
+                keyIdx++;
+            } else {
+                if (char === ' ') {
+                    result += ' ';
+                } else if (retainPunctuation) {
+                    result += char;
+                }
+            }
+        }
+
+        return { result, steps: [] };
     }
 };
+

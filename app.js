@@ -1,5 +1,5 @@
 /**
- * CipherCraft App Controller
+ * Starlight Cipher Suite - App Controller
  */
 
 import {
@@ -11,7 +11,8 @@ import {
     BinaryConverter,
     A1z26,
     BinaryReverse,
-    ScandiCaesar
+    ScandiCaesar,
+    Basementen
 } from './ciphers.js';
 
 // Application State
@@ -22,6 +23,12 @@ const state = {
     showProcess: true,
     history: []
 };
+
+// Basementen Session State
+let basementenUnlocked = false;
+let basementenKey = '';
+let basementenTxValid = false;
+let basementenDecryptedKey = null;
 
 // DOM Elements
 const elements = {
@@ -77,8 +84,53 @@ const elements = {
     mobileModal: document.getElementById('mobile-modal'),
     closeModalBtn: document.getElementById('close-modal-btn'),
     qrImage: document.getElementById('qr-image'),
-    qrUrlText: document.getElementById('qr-url-text')
+    qrUrlText: document.getElementById('qr-url-text'),
+
+    // Basementen elements
+    paramBasementen: document.getElementById('param-basementen'),
+    basementenGenKey: document.getElementById('basementen-gen-key'),
+    basementenViewLog: document.getElementById('basementen-view-log'),
+    basementenResetPwd: document.getElementById('basementen-reset-pwd'),
+    basementenKeyStatus: document.getElementById('basementen-key-status'),
+    basementenSetupModal: document.getElementById('basementen-setup-modal'),
+    basementenSetupForm: document.getElementById('basementen-setup-form'),
+    basementenSetupPwdInput: document.getElementById('basementen-setup-pwd-input'),
+    basementenSetupConfirmInput: document.getElementById('basementen-setup-confirm-input'),
+    basementenSetupSubmit: document.getElementById('basementen-setup-submit'),
+    basementenUnlockModal: document.getElementById('basementen-unlock-modal'),
+    basementenUnlockForm: document.getElementById('basementen-unlock-form'),
+    basementenUnlockPwdInput: document.getElementById('basementen-unlock-pwd-input'),
+    basementenUnlockError: document.getElementById('basementen-unlock-error'),
+    basementenUnlockCancel: document.getElementById('basementen-unlock-cancel'),
+    basementenLogModal: document.getElementById('basementen-log-modal'),
+    basementenLogRows: document.getElementById('basementen-log-rows'),
+    basementenLogClose: document.getElementById('basementen-log-close'),
+    basementenLogOk: document.getElementById('basementen-log-ok'),
+    basementenClearLog: document.getElementById('basementen-clear-log'),
     
+    // Vault and Auto-Unlock elements
+    basementenTxLabel: document.getElementById('basementen-tx-label'),
+    basementenTxPassword: document.getElementById('basementen-tx-password'),
+    basementenTxError: document.getElementById('basementen-tx-error'),
+    basementenTxName: document.getElementById('basementen-tx-name'),
+    basementenNameGroup: document.getElementById('basementen-name-group'),
+    basementenSaveTx: document.getElementById('basementen-save-tx'),
+    basementenAutoRecognizePanel: document.getElementById('basementen-auto-recognize-panel'),
+    basementenAutoStatusTitle: document.getElementById('basementen-auto-status-title'),
+    basementenAutoStatusDesc: document.getElementById('basementen-auto-status-desc'),
+    basementenRevealKeyModal: document.getElementById('basementen-reveal-key-modal'),
+    basementenRevealModalTitle: document.getElementById('basementen-reveal-modal-title'),
+    basementenRevealModalDesc: document.getElementById('basementen-reveal-modal-desc'),
+    basementenRevealKeyForm: document.getElementById('basementen-reveal-key-form'),
+    basementenRevealKeyPwdInput: document.getElementById('basementen-reveal-key-pwd-input'),
+    basementenRevealKeyError: document.getElementById('basementen-reveal-key-error'),
+    basementenRevealKeyClose: document.getElementById('basementen-reveal-key-close'),
+    basementenRevealKeyCancel: document.getElementById('basementen-reveal-key-cancel'),
+    
+    // Panel title and copy helper elements
+    inputPanelTitle: document.getElementById('input-panel-title'),
+    outputPanelTitle: document.getElementById('output-panel-title'),
+    basementenCopyOutput: document.getElementById('basementen-copy-output')
 };
 
 // Global PWA Install prompt pointer
@@ -99,10 +151,7 @@ function init() {
     
     // Bind Event Listeners
     bindEvents();
-    
-    // Register Service Worker
-    registerServiceWorker();
-    
+
     // Render History
     renderHistory();
     
@@ -169,13 +218,77 @@ function setupUIFromState() {
         }
     });
 
-    // Set Mode Active
+    // Set Mode Active & Header Titles
     if (state.mode === 'encode') {
         elements.modeEncode.classList.add('active');
         elements.modeDecode.classList.remove('active');
+        document.body.classList.remove('mode-decode');
+        
+        elements.inputPanelTitle.textContent = 'Plaintext Input';
+        elements.outputPanelTitle.textContent = 'Ciphertext Output';
     } else {
         elements.modeEncode.classList.remove('active');
         elements.modeDecode.classList.add('active');
+        document.body.classList.add('mode-decode');
+        
+        elements.inputPanelTitle.textContent = 'Ciphertext Input';
+        elements.outputPanelTitle.textContent = 'Plaintext Output';
+    }
+
+    // Handle Basementen Encode mode panel visibility override
+    const outputPanel = elements.textOutput.closest('.console-panel');
+    const inputPanel = elements.textInput.closest('.console-panel');
+    
+    if (state.cipher === 'basementen') {
+        if (state.mode === 'encode') {
+            outputPanel.classList.add('hidden');
+            inputPanel.classList.remove('hidden');
+            elements.basementenCopyOutput.classList.remove('hidden');
+            
+            elements.basementenTxLabel.textContent = "Transaction Password (cannot be master password):";
+            elements.basementenTxPassword.placeholder = "Set password to secure this transaction";
+            elements.basementenNameGroup.classList.remove('hidden');
+            elements.basementenSaveTx.classList.remove('hidden');
+            elements.basementenGenKey.classList.remove('hidden');
+            elements.basementenViewLog.classList.remove('hidden');
+            elements.basementenResetPwd.classList.remove('hidden');
+            
+            if (basementenTxValid) {
+                elements.textInput.disabled = false;
+                elements.textInput.placeholder = "Type or paste your text here...";
+            } else {
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
+            }
+        } else {
+            outputPanel.classList.remove('hidden');
+            inputPanel.classList.remove('hidden');
+            elements.basementenCopyOutput.classList.add('hidden');
+            
+            elements.basementenTxLabel.textContent = "Decryption Password:";
+            elements.basementenTxPassword.placeholder = "Enter password to decrypt";
+            elements.basementenNameGroup.classList.add('hidden');
+            elements.basementenSaveTx.classList.add('hidden');
+            elements.basementenGenKey.classList.add('hidden');
+            elements.basementenViewLog.classList.add('hidden');
+            elements.basementenResetPwd.classList.add('hidden');
+            
+            if (basementenDecryptedKey !== null) {
+                elements.textInput.disabled = false;
+                elements.textInput.placeholder = "Enter ciphertext to decrypt...";
+            } else {
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter the Decryption Password in the control panel to load the key...";
+            }
+        }
+    } else {
+        outputPanel.classList.remove('hidden');
+        inputPanel.classList.remove('hidden');
+        elements.basementenCopyOutput.classList.add('hidden');
+        elements.textInput.disabled = false;
+        elements.textInput.placeholder = "Type or paste your text here...";
     }
 
     // Set Toggles
@@ -202,6 +315,7 @@ function showActiveParameterGroup() {
     elements.paramVigenere.classList.remove('active-param');
     elements.paramRailfence.classList.remove('active-param');
     elements.paramAnagram.classList.remove('active-param');
+    elements.paramBasementen.classList.remove('active-param');
     elements.paramNone.classList.remove('active-param');
 
     // Show correct one and handle output panel layout based on state
@@ -232,6 +346,9 @@ function showActiveParameterGroup() {
         case 'scandicaesar':
             elements.paramScandicaesar.classList.add('active-param');
             break;
+        case 'basementen':
+            elements.paramBasementen.classList.add('active-param');
+            break;
         case 'vigenere':
             elements.paramVigenere.classList.add('active-param');
             break;
@@ -252,12 +369,33 @@ function showActiveParameterGroup() {
  */
 function bindEvents() {
     // Cipher Select Buttons
+    let previousCipher = 'caesar';
     elements.cipherBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            state.cipher = btn.dataset.cipher;
-            saveConfigState();
-            setupUIFromState();
-            runConversion();
+            const selectedCipher = btn.dataset.cipher;
+            
+            if (state.cipher !== 'basementen') {
+                previousCipher = state.cipher;
+            }
+
+            // Click away from basementen: lock it immediately and clear in-memory key
+            if (state.cipher === 'basementen' && selectedCipher !== 'basementen') {
+                basementenUnlocked = false;
+                basementenKey = '';
+                basementenCryptoKey = null;
+                elements.basementenKeyStatus.textContent = 'Locked [Requires Verification]';
+                elements.basementenKeyStatus.style.color = '#ef4444';
+            }
+
+            state.cipher = selectedCipher;
+
+            if (selectedCipher === 'basementen') {
+                handleBasementenAccess(previousCipher);
+            } else {
+                saveConfigState();
+                setupUIFromState();
+                runConversion();
+            }
         });
     });
 
@@ -267,6 +405,7 @@ function bindEvents() {
         elements.modeEncode.classList.add('active');
         elements.modeDecode.classList.remove('active');
         saveConfigState();
+        setupUIFromState();
         runConversion();
     });
 
@@ -275,6 +414,7 @@ function bindEvents() {
         elements.modeEncode.classList.remove('active');
         elements.modeDecode.classList.add('active');
         saveConfigState();
+        setupUIFromState();
         runConversion();
     });
 
@@ -432,10 +572,15 @@ function bindEvents() {
     });
 
     // Modal Event Handlers
+    // Generated entirely client-side (via the vendored qrcode.js) so no request
+    // ever leaves the device just to render this code.
     const updateQrCode = (url) => {
         elements.qrUrlText.textContent = url;
-        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
-        elements.qrImage.src = qrApiUrl;
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        const svg = qr.createSvgTag({ cellSize: 5, margin: 4 });
+        elements.qrImage.src = 'data:image/svg+xml;base64,' + btoa(svg);
     };
 
     elements.mobileBtn.addEventListener('click', () => {
@@ -454,6 +599,207 @@ function bindEvents() {
     });
 
 
+
+    // Basementen Event Listeners
+    elements.basementenGenKey.addEventListener('click', async () => {
+        if (!basementenUnlocked || !basementenCryptoKey) return;
+        if (confirm("Are you sure you want to generate a new 256-bit key? This will replace the active key.")) {
+            const newKey = generate256BitKey();
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const encrypted = await window.crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv },
+                basementenCryptoKey,
+                new TextEncoder().encode(newKey)
+            );
+            localStorage.setItem('basementen_iv', bufToHex(iv));
+            localStorage.setItem('basementen_encrypted_key', bufToHex(encrypted));
+            basementenKey = newKey;
+            elements.basementenKeyStatus.textContent = 'Active [Secure 256-bit]';
+            elements.basementenKeyStatus.style.color = '#10b981';
+            alert("New 256-bit key generated and encrypted successfully.");
+            runConversion();
+        }
+    });
+
+    elements.basementenViewLog.addEventListener('click', () => {
+        if (!basementenUnlocked) return;
+        renderBasementenLog();
+        elements.basementenLogModal.classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+    });
+
+    elements.basementenResetPwd.addEventListener('click', () => {
+        if (confirm("WARNING: Are you sure you want to wipe all transaction history, generated keys, and master password for The Basementen? This cannot be undone!")) {
+            localStorage.removeItem('basementen_encrypted_key');
+            localStorage.removeItem('basementen_salt');
+            localStorage.removeItem('basementen_iv');
+            localStorage.removeItem('basementen_history');
+            basementenUnlocked = false;
+            basementenKey = '';
+            basementenCryptoKey = null;
+            elements.basementenKeyStatus.textContent = 'Locked [Requires Verification]';
+            elements.basementenKeyStatus.style.color = '#ef4444';
+            
+            state.cipher = 'caesar';
+            saveConfigState();
+            setupUIFromState();
+            runConversion();
+            alert("The Basementen workspace has been fully wiped and reset.");
+        }
+    });
+
+    elements.basementenLogClose.addEventListener('click', () => {
+        elements.basementenLogModal.classList.add('hidden');
+    });
+
+    elements.basementenLogOk.addEventListener('click', () => {
+        elements.basementenLogModal.classList.add('hidden');
+    });
+
+    elements.basementenClearLog.addEventListener('click', () => {
+        if (confirm("Are you sure you want to clear all Basementen transaction logs?")) {
+            localStorage.removeItem('basementen_history');
+            renderBasementenLog();
+        }
+    });
+
+    // Dynamic validation & password-first lock handlers for the Transaction Password field
+    elements.basementenTxPassword.addEventListener('input', async (e) => {
+        const pwd = e.target.value;
+        elements.basementenTxError.textContent = '';
+        elements.basementenTxError.style.color = '#ef4444';
+
+        if (state.mode === 'encode') {
+            if (!pwd) {
+                basementenTxValid = false;
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
+                return;
+            }
+
+            if (pwd.length < 6 || pwd.length > 32) {
+                elements.basementenTxError.textContent = 'Password must be between 6 and 32 characters.';
+                basementenTxValid = false;
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
+                return;
+            }
+
+            const isMaster = await isMasterPassword(pwd);
+            if (isMaster) {
+                elements.basementenTxError.textContent = 'Transaction password cannot be the same as the master password.';
+                basementenTxValid = false;
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
+                return;
+            }
+
+            basementenTxValid = true;
+            elements.textInput.disabled = false;
+            elements.textInput.placeholder = "Type or paste your text here...";
+        } else {
+            // Decode mode: find log entry by password first
+            if (!pwd) {
+                basementenDecryptedKey = null;
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter the Transaction Password in the control panel to load the key...";
+                elements.basementenAutoRecognizePanel.classList.add('hidden');
+                return;
+            }
+
+            const matched = await searchHistoryByPassword(pwd);
+            if (matched) {
+                basementenDecryptedKey = matched.decryptedKey;
+                elements.textInput.disabled = false;
+                elements.textInput.placeholder = "Enter ciphertext to decrypt...";
+                
+                elements.basementenAutoRecognizePanel.classList.remove('hidden');
+                elements.basementenAutoRecognizePanel.style.background = 'rgba(16, 185, 129, 0.08)';
+                elements.basementenAutoRecognizePanel.style.border = '1px solid rgba(16, 185, 129, 0.2)';
+                elements.basementenAutoStatusTitle.style.color = '#10b981';
+                elements.basementenAutoStatusTitle.innerHTML = `<i data-lucide="check-circle" style="width: 14px; height: 14px;"></i> Key Recovered Successfully`;
+                elements.basementenAutoStatusDesc.style.color = 'var(--color-text-secondary)';
+                elements.basementenAutoStatusDesc.textContent = `Found matching log entry from ${matched.item.timestamp}. Ready to decrypt.`;
+                if (window.lucide) window.lucide.createIcons();
+
+                runConversion();
+            } else {
+                basementenDecryptedKey = null;
+                elements.textInput.disabled = true;
+                elements.textInput.value = '';
+                elements.textInput.placeholder = "Please enter the Transaction Password in the control panel to load the key...";
+                
+                elements.basementenAutoRecognizePanel.classList.remove('hidden');
+                elements.basementenAutoRecognizePanel.style.background = 'rgba(239, 68, 68, 0.08)';
+                elements.basementenAutoRecognizePanel.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+                elements.basementenAutoStatusTitle.style.color = '#ef4444';
+                elements.basementenAutoStatusTitle.innerHTML = `<i data-lucide="x-circle" style="width: 14px; height: 14px;"></i> Key Not Found`;
+                elements.basementenAutoStatusDesc.style.color = 'var(--color-text-secondary)';
+                elements.basementenAutoStatusDesc.textContent = "No matching transaction log found for this password.";
+                if (window.lucide) window.lucide.createIcons();
+            }
+        }
+    });
+
+    // Save transaction button click handler
+    elements.basementenSaveTx.addEventListener('click', async () => {
+        const inputVal = elements.textInput.value;
+        const outputVal = elements.textOutput.value;
+        const txName = elements.basementenTxName.value.trim();
+
+        if (!basementenUnlocked) {
+            alert("Master password must be entered first.");
+            return;
+        }
+
+        if (!inputVal || !outputVal || outputVal.startsWith('[LOCKED') || outputVal.startsWith('LOCKED:')) {
+            alert("Please compose some plaintext and perform encoding first to generate output.");
+            return;
+        }
+
+        const success = await saveBasementenTransaction(inputVal, outputVal, 'encode', basementenKey, txName);
+        if (success) {
+            navigator.clipboard.writeText(outputVal).then(() => {
+                alert("Transaction saved successfully to vault log and ciphertext output copied to clipboard!");
+            }).catch(err => {
+                console.error("Clipboard copy failed on save", err);
+                alert("Transaction saved successfully to vault log!");
+            }).finally(() => {
+                // Clear and reset all fields
+                elements.textInput.value = '';
+                elements.textOutput.value = '';
+                elements.basementenTxName.value = '';
+                elements.basementenTxPassword.value = '';
+                
+                // Invalidate TX password state to lock composition panel
+                basementenTxValid = false;
+                
+                // Update labels, disabled states, and render logs
+                setupUIFromState();
+                renderBasementenLog();
+            });
+        }
+    });
+
+    // Copy encoded output button click handler
+    elements.basementenCopyOutput.addEventListener('click', () => {
+        const val = elements.textOutput.value;
+        if (!val || val.startsWith('[LOCKED') || val.startsWith('LOCKED:')) {
+            alert("Nothing to copy or workspace is locked.");
+            return;
+        }
+        navigator.clipboard.writeText(val).then(() => {
+            alert("Encoded output ciphertext copied to clipboard!");
+            // Auto save to history when explicitly copied
+            saveToHistory(elements.textInput.value, val);
+        }).catch(err => {
+            console.error("Clipboard copy failed", err);
+        });
+    });
 
     // Online/Offline Listeners
     window.addEventListener('online', updateNetworkStatus);
@@ -579,6 +925,26 @@ function runConversion() {
                     : BinaryReverse.decode(input, 'fixed', state.retainPunctuation);
                 break;
             }
+            case 'basementen': {
+                if (!basementenUnlocked) {
+                    resultObj = { result: "LOCKED: Please enter master password", steps: [] };
+                } else {
+                    if (state.mode === 'decode') {
+                        if (basementenDecryptedKey !== null) {
+                            resultObj = Basementen.decode(input, basementenDecryptedKey, state.retainPunctuation);
+                        } else {
+                            resultObj = { result: "[LOCKED: Enter Transaction Password in the control panel to load key]", steps: [] };
+                        }
+                    } else {
+                        if (basementenTxValid) {
+                            resultObj = Basementen.encode(input, basementenKey, state.retainPunctuation);
+                        } else {
+                            resultObj = { result: "[LOCKED: Set Transaction Password in the control panel to unlock composition]", steps: [] };
+                        }
+                    }
+                }
+                break;
+            }
         }
     } catch (e) {
         resultObj = { result: `Error executing conversion: ${e.message}`, steps: [{ title: 'Execution Failure', content: e.stack }] };
@@ -599,6 +965,17 @@ function runConversion() {
  */
 function renderProcessSteps(steps) {
     elements.processLog.innerHTML = '';
+    
+    if (state.cipher === 'basementen') {
+        elements.processLog.innerHTML = `
+            <div class="placeholder-log" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); padding: 20px; border-radius: var(--radius-md); border: 1px solid; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <i data-lucide="shield-alert" class="animate-pulse" style="width: 24px; height: 24px;"></i>
+                <p style="margin: 0; font-weight: 600;">Process breakdown is disabled for The Basementen to prevent key leakage.</p>
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        return;
+    }
     
     if (steps.length === 0) {
         renderProcessPlaceholder();
@@ -654,6 +1031,13 @@ function triggerHistoryAutoSave() {
  */
 function saveToHistory(input, output) {
     if (!input || !output) return;
+
+    if (state.cipher === 'basementen') {
+        if (basementenUnlocked && basementenKey) {
+            saveBasementenTransaction(input, output, state.mode, basementenKey);
+        }
+        return;
+    }
     
     // Avoid duplicate adjacent saves (e.g. if copy and auto-save trigger on same content)
     if (state.history.length > 0) {
@@ -803,9 +1187,6 @@ function escapeHtml(str) {
 }
 
 /**
- * Register Service Worker for offline capability
- */
-/**
  * Generate a scrambled variation of a string maintaining spaces
  */
 function generateScrambleString(input) {
@@ -847,20 +1228,515 @@ function scrambleInputToOutput() {
     elements.textOutput.dispatchEvent(new Event('input'));
 }
 
-function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            // Note: service worker path relative to root
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => {
-                    console.log('ServiceWorker registration successful with scope: ', reg.scope);
-                })
-                .catch(err => {
-                    console.warn('ServiceWorker registration failed: ', err);
-                });
-        });
+/* ==========================================================================
+   THE BASEMENTEN SECURE CIPHER CORE & WORKFLOW
+   ========================================================================== */
+let basementenCryptoKey = null;
+
+// Hex conversion helpers
+function bufToHex(buf) {
+    return Array.from(new Uint8Array(buf))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+function hexToBuf(hex) {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    return bytes.buffer;
+}
+
+// Derive AES-GCM 256-bit key from password using PBKDF2
+async function deriveKeyFromPassword(password, salt) {
+    const baseKey = await window.crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(password),
+        "PBKDF2",
+        false,
+        ["deriveBits", "deriveKey"]
+    );
+    const aesKey = await window.crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt: salt,
+            iterations: 100000,
+            hash: "SHA-256"
+        },
+        baseKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
+    );
+    return aesKey;
+}
+
+// Generate secure random key (40 chars from 92-char printable pool for >256 bits entropy)
+function generate256BitKey() {
+    const pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?\u00e6\u00f8\u00e5\u00c6\u00d8\u00c5";
+    const randomBytes = new Uint8Array(40);
+    window.crypto.getRandomValues(randomBytes);
+    let key = '';
+    for (let i = 0; i < 40; i++) {
+        key += pool[randomBytes[i] % pool.length];
+    }
+    return key;
+}
+
+// Verify if a password matches the master password
+async function isMasterPassword(pwd) {
+    const saltHex = localStorage.getItem('basementen_salt');
+    const ivHex = localStorage.getItem('basementen_iv');
+    const encryptedHex = localStorage.getItem('basementen_encrypted_key');
+    if (!saltHex || !ivHex || !encryptedHex) return false;
+    try {
+        const salt = new Uint8Array(hexToBuf(saltHex));
+        const iv = new Uint8Array(hexToBuf(ivHex));
+        const ciphertext = hexToBuf(encryptedHex);
+        const aesKey = await deriveKeyFromPassword(pwd, salt);
+        await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, aesKey, ciphertext);
+        return true;
+    } catch (e) {
+        return false;
     }
 }
 
+// Search database to find log entry that decrypts with this password
+async function searchHistoryByPassword(pwd) {
+    let history = [];
+    const saved = localStorage.getItem('basementen_history');
+    if (saved) {
+        try {
+            history = JSON.parse(saved);
+        } catch (e) {}
+    }
+    
+    for (const item of history) {
+        try {
+            const salt = new Uint8Array(hexToBuf(item.salt));
+            const iv = new Uint8Array(hexToBuf(item.iv));
+            const ciphertext = hexToBuf(item.encryptedPayload);
+            const aesKey = await deriveKeyFromPassword(pwd, salt);
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv },
+                aesKey,
+                ciphertext
+            );
+            const payload = JSON.parse(new TextDecoder().decode(decrypted));
+            return { item, decryptedKey: payload.key };
+        } catch (e) {
+            // Decryption failed for this item, continue to next
+        }
+    }
+    return null;
+}
+
+// Save transaction securely inside vault separate from general history log
+async function saveBasementenTransaction(input, output, mode, keyUsed, customName) {
+    const txPwd = elements.basementenTxPassword.value;
+    if (!txPwd) {
+        elements.basementenTxError.textContent = "Transaction not saved: Set a password to encrypt in vault.";
+        elements.basementenTxError.style.color = '#f59e0b';
+        return false;
+    }
+
+    if (txPwd.length < 6 || txPwd.length > 32) {
+        elements.basementenTxError.textContent = "Transaction not saved: Password must be between 6 and 32 characters.";
+        elements.basementenTxError.style.color = '#ef4444';
+        return false;
+    }
+
+    const isMaster = await isMasterPassword(txPwd);
+    if (isMaster) {
+        elements.basementenTxError.textContent = "Transaction not saved: Cannot match master password.";
+        elements.basementenTxError.style.color = '#ef4444';
+        return false;
+    }
+
+    try {
+        elements.basementenTxError.textContent = "";
+
+        // Encrypt the entire transaction payload (keyword + plaintext input/output) using
+        // the transaction password. Nothing sensitive is stored outside this ciphertext.
+        const txSalt = window.crypto.getRandomValues(new Uint8Array(16));
+        const txIv = window.crypto.getRandomValues(new Uint8Array(12));
+        const txAesKey = await deriveKeyFromPassword(txPwd, txSalt);
+
+        const payload = JSON.stringify({ key: keyUsed, input, output });
+        const encrypted = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: txIv },
+            txAesKey,
+            new TextEncoder().encode(payload)
+        );
+
+        let history = [];
+        const saved = localStorage.getItem('basementen_history');
+        if (saved) {
+            try {
+                history = JSON.parse(saved);
+            } catch(e) {}
+        }
+
+        const newItem = {
+            id: Date.now().toString(),
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            name: customName || "Unnamed Transaction",
+            mode: mode,
+            encryptedPayload: bufToHex(encrypted),
+            salt: bufToHex(txSalt),
+            iv: bufToHex(txIv)
+        };
+
+        history.unshift(newItem);
+        if (history.length > 20) {
+            history.pop();
+        }
+        localStorage.setItem('basementen_history', JSON.stringify(history));
+        return true;
+    } catch (err) {
+        console.error("Error saving transaction to vault", err);
+        return false;
+    }
+}
+
+// Render secure key & transaction log
+function renderBasementenLog() {
+    elements.basementenLogRows.innerHTML = '';
+    let history = [];
+    const saved = localStorage.getItem('basementen_history');
+    if (saved) {
+        try {
+            history = JSON.parse(saved);
+        } catch (e) {}
+    }
+    if (history.length === 0) {
+        elements.basementenLogRows.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 15px; color: var(--color-text-muted);">No transaction logs found.</td>
+            </tr>
+        `;
+        return;
+    }
+    history.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border-glass)';
+        
+        const tdTime = document.createElement('td');
+        tdTime.style.padding = '10px';
+        tdTime.textContent = item.timestamp;
+
+        const tdName = document.createElement('td');
+        tdName.style.padding = '10px';
+        const badge = document.createElement('span');
+        badge.className = `history-badge ${item.mode}`;
+        badge.textContent = item.mode;
+        tdName.appendChild(badge);
+        const nameText = document.createTextNode(' ' + (item.name || 'Unnamed Transaction'));
+        tdName.appendChild(nameText);
+
+        const tdOutput = document.createElement('td');
+        tdOutput.className = 'io-cell';
+        tdOutput.style.padding = '10px';
+        const revealOutputBtn = document.createElement('span');
+        revealOutputBtn.style.color = 'var(--color-primary)';
+        revealOutputBtn.style.cursor = 'pointer';
+        revealOutputBtn.style.textDecoration = 'underline';
+        revealOutputBtn.textContent = "[Locked - Click to Reveal]";
+        revealOutputBtn.addEventListener('click', () => {
+            promptRevealPlaintext(item, tdOutput, 'output');
+        });
+        tdOutput.appendChild(revealOutputBtn);
+
+        const tdKey = document.createElement('td');
+        tdKey.className = 'key-cell';
+        tdKey.style.padding = '10px';
+        tdKey.style.wordBreak = 'break-all';
+        
+        const revealBtn = document.createElement('span');
+        revealBtn.style.color = 'var(--color-primary)';
+        revealBtn.style.cursor = 'pointer';
+        revealBtn.style.textDecoration = 'underline';
+        revealBtn.textContent = "[Locked - Click to Reveal]";
+        revealBtn.addEventListener('click', () => {
+            promptRevealKey(item, tdKey);
+        });
+        tdKey.appendChild(revealBtn);
+
+        tr.appendChild(tdTime);
+        tr.appendChild(tdName);
+        tr.appendChild(tdOutput);
+        tr.appendChild(tdKey);
+        elements.basementenLogRows.appendChild(tr);
+    });
+}
+
+// Prompt and verify password to reveal a locked transaction key
+function promptRevealKey(item, tdKey) {
+    elements.basementenRevealModalTitle.textContent = "Reveal Secure Key";
+    elements.basementenRevealModalDesc.textContent = "Please enter the unique Transaction Password for this log entry to decrypt and reveal the key.";
+    elements.basementenRevealKeyModal.classList.remove('hidden');
+    elements.basementenRevealKeyPwdInput.value = '';
+    elements.basementenRevealKeyError.textContent = '';
+    elements.basementenRevealKeyPwdInput.focus();
+
+    elements.basementenRevealKeyForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const pwd = elements.basementenRevealKeyPwdInput.value;
+        try {
+            const salt = new Uint8Array(hexToBuf(item.salt));
+            const iv = new Uint8Array(hexToBuf(item.iv));
+            const ciphertext = hexToBuf(item.encryptedPayload);
+
+            const aesKey = await deriveKeyFromPassword(pwd, salt);
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                aesKey,
+                ciphertext
+            );
+
+            const payload = JSON.parse(new TextDecoder().decode(decrypted));
+            tdKey.innerHTML = '';
+            tdKey.textContent = payload.key;
+            tdKey.style.color = '#10b981';
+
+            elements.basementenRevealKeyModal.classList.add('hidden');
+        } catch (err) {
+            console.error(err);
+            elements.basementenRevealKeyError.textContent = "Incorrect password. Key decryption failed.";
+        }
+    };
+}
+
+// Prompt and verify password to reveal a locked plaintext input/output
+function promptRevealPlaintext(item, cell, field) {
+    elements.basementenRevealModalTitle.textContent = "Reveal Plaintext Content";
+    elements.basementenRevealModalDesc.textContent = "Please enter the unique Transaction Password for this log entry to decrypt and reveal the secret plaintext.";
+    elements.basementenRevealKeyModal.classList.remove('hidden');
+    elements.basementenRevealKeyPwdInput.value = '';
+    elements.basementenRevealKeyError.textContent = '';
+    elements.basementenRevealKeyPwdInput.focus();
+
+    elements.basementenRevealKeyForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const pwd = elements.basementenRevealKeyPwdInput.value;
+        try {
+            const salt = new Uint8Array(hexToBuf(item.salt));
+            const iv = new Uint8Array(hexToBuf(item.iv));
+            const ciphertext = hexToBuf(item.encryptedPayload);
+
+            const aesKey = await deriveKeyFromPassword(pwd, salt);
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                aesKey,
+                ciphertext
+            );
+
+            // Decryption succeeded! Reveal the requested plaintext field
+            const payload = JSON.parse(new TextDecoder().decode(decrypted));
+            const val = field === 'input' ? payload.input : payload.output;
+            cell.innerHTML = '';
+            cell.textContent = val;
+            cell.title = val;
+            cell.style.color = '#10b981';
+
+            elements.basementenRevealKeyModal.classList.add('hidden');
+        } catch (err) {
+            console.error(err);
+            elements.basementenRevealKeyError.textContent = "Incorrect password. Verification failed.";
+        }
+    };
+}
+
+// Reveal Key Modal close listeners
+elements.basementenRevealKeyClose.addEventListener('click', () => {
+    elements.basementenRevealKeyModal.classList.add('hidden');
+});
+elements.basementenRevealKeyCancel.addEventListener('click', () => {
+    elements.basementenRevealKeyModal.classList.add('hidden');
+});
+
+// Access controller flow
+async function handleBasementenAccess(previousCipher) {
+    const hasKey = localStorage.getItem('basementen_encrypted_key');
+    if (!hasKey) {
+        showBasementenSetup();
+    } else {
+        if (!basementenUnlocked) {
+            showBasementenUnlock(previousCipher);
+        } else {
+            // Already unlocked in session
+            elements.basementenKeyStatus.textContent = 'Active [Secure 256-bit]';
+            elements.basementenKeyStatus.style.color = '#10b981';
+            saveConfigState();
+            setupUIFromState();
+            runConversion();
+        }
+    }
+}
+
+// 10-second countdown security warning and setup form
+function showBasementenSetup() {
+    elements.basementenSetupModal.classList.remove('hidden');
+    
+    // Reset timer state
+    let count = 10;
+    const timerSpan = document.getElementById('setup-timer-val');
+    const container = document.getElementById('setup-countdown-container');
+    const form = elements.basementenSetupForm;
+    
+    timerSpan.textContent = count;
+    container.style.display = 'block';
+    form.style.opacity = '0.4';
+    form.style.pointerEvents = 'none';
+    elements.basementenSetupPwdInput.disabled = true;
+    elements.basementenSetupConfirmInput.disabled = true;
+    elements.basementenSetupSubmit.disabled = true;
+
+    const interval = setInterval(() => {
+        count--;
+        timerSpan.textContent = count;
+        if (count <= 0) {
+            clearInterval(interval);
+            container.style.display = 'none';
+            form.style.opacity = '1';
+            form.style.pointerEvents = 'auto';
+            elements.basementenSetupPwdInput.disabled = false;
+            elements.basementenSetupConfirmInput.disabled = false;
+            elements.basementenSetupSubmit.disabled = false;
+        }
+    }, 1000);
+
+    // Form submit listener
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const password = elements.basementenSetupPwdInput.value;
+        const confirm = elements.basementenSetupConfirmInput.value;
+
+        if (password.length < 6) {
+            alert("Password must be at least 6 characters.");
+            return;
+        }
+        if (password !== confirm) {
+            alert("Passwords do not match.");
+            return;
+        }
+
+        try {
+            // Generate a secure salt & AES key
+            const salt = window.crypto.getRandomValues(new Uint8Array(16));
+            const aesKey = await deriveKeyFromPassword(password, salt);
+
+            // Generate initial random key
+            const newKey = generate256BitKey();
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            
+            // Encrypt key using derived AES Key
+            const encrypted = await window.crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv },
+                aesKey,
+                new TextEncoder().encode(newKey)
+            );
+
+            // Save credentials
+            localStorage.setItem('basementen_salt', bufToHex(salt));
+            localStorage.setItem('basementen_iv', bufToHex(iv));
+            localStorage.setItem('basementen_encrypted_key', bufToHex(encrypted));
+
+            // Set session state
+            basementenUnlocked = true;
+            basementenKey = newKey;
+            basementenCryptoKey = aesKey;
+
+            // Update UI status
+            elements.basementenKeyStatus.textContent = 'Active [Secure 256-bit]';
+            elements.basementenKeyStatus.style.color = '#10b981';
+
+            // Clean inputs
+            elements.basementenSetupPwdInput.value = '';
+            elements.basementenSetupConfirmInput.value = '';
+            
+            elements.basementenSetupModal.classList.add('hidden');
+            saveConfigState();
+            setupUIFromState();
+            runConversion();
+            alert("Master Password saved and 256-bit keyword generated successfully.");
+        } catch (err) {
+            console.error(err);
+            alert("Error setting up encryption key: " + err.message);
+        }
+    };
+}
+
+// Unlock with master password verification
+function showBasementenUnlock(previousCipher) {
+    elements.basementenUnlockModal.classList.remove('hidden');
+    elements.basementenUnlockPwdInput.value = '';
+    elements.basementenUnlockError.textContent = '';
+    elements.basementenUnlockPwdInput.focus();
+
+    // Cancel lock: revert back to previous cipher
+    elements.basementenUnlockCancel.onclick = () => {
+        elements.basementenUnlockModal.classList.add('hidden');
+        state.cipher = previousCipher || 'caesar';
+        saveConfigState();
+        setupUIFromState();
+        runConversion();
+    };
+
+    elements.basementenUnlockForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const password = elements.basementenUnlockPwdInput.value;
+        
+        const saltHex = localStorage.getItem('basementen_salt');
+        const ivHex = localStorage.getItem('basementen_iv');
+        const encryptedHex = localStorage.getItem('basementen_encrypted_key');
+
+        if (!saltHex || !ivHex || !encryptedHex) {
+            elements.basementenUnlockError.textContent = "Error: System key missing. Please reset.";
+            return;
+        }
+
+        try {
+            const salt = new Uint8Array(hexToBuf(saltHex));
+            const iv = new Uint8Array(hexToBuf(ivHex));
+            const ciphertext = hexToBuf(encryptedHex);
+
+            // Derive key
+            const aesKey = await deriveKeyFromPassword(password, salt);
+
+            // Try to decrypt
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                aesKey,
+                ciphertext
+            );
+
+            // Successfully unlocked
+            basementenUnlocked = true;
+            basementenKey = new TextDecoder().decode(decrypted);
+            basementenCryptoKey = aesKey;
+
+            elements.basementenKeyStatus.textContent = 'Active [Secure 256-bit]';
+            elements.basementenKeyStatus.style.color = '#10b981';
+
+            elements.basementenUnlockModal.classList.add('hidden');
+            saveConfigState();
+            setupUIFromState();
+            runConversion();
+        } catch (err) {
+            console.error(err);
+            elements.basementenUnlockError.textContent = "Incorrect password. Please try again.";
+        }
+    };
+}
+
 // Start the app
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    
+    // Auto-prompt if basementen was the saved active cipher on startup
+    if (state.cipher === 'basementen') {
+        handleBasementenAccess('caesar');
+    }
+});

@@ -14,16 +14,17 @@
     <link rel="icon" href="icon.png?v=8" type="image/png">
     <link rel="apple-touch-icon" href="icon.png?v=8">
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-    
+    <!-- Fonts (vendored locally, see fonts/fonts.css) -->
+    <link rel="stylesheet" href="fonts/fonts.css">
+
     <!-- Stylesheet -->
     <link rel="stylesheet" href="styles.css">
     
-    <!-- Lucide Icons CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons (vendored locally so icons work offline and don't drift on updates) -->
+    <script src="lucide.min.js?v=1.23.0"></script>
+
+    <!-- QR code generation (vendored locally, generated client-side, no external API call) -->
+    <script src="qrcode.js?v=2.0.4"></script>
 </head>
 <body>
     <div class="app-container">
@@ -98,6 +99,11 @@
                         <span class="cipher-name">Scandi Caesar</span>
                         <span class="badge-custom" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">Scandi</span>
                     </button>
+                    <button class="cipher-select-btn" data-cipher="basementen">
+                        <i data-lucide="shield-alert"></i>
+                        <span class="cipher-name">The Basementen</span>
+                        <span class="badge-custom" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Secure</span>
+                    </button>
                     <button class="cipher-select-btn" data-cipher="vigenere">
                         <i data-lucide="keyboard"></i>
                         <span class="cipher-name">Vigenere Cipher</span>
@@ -139,6 +145,51 @@
                             <div>
                                 <label for="scandicaesar-shift">Shift Key (0-28): <span id="scandicaesar-shift-value">3</span></label>
                                 <input type="range" id="scandicaesar-shift" min="0" max="28" value="3" class="range-slider">
+                            </div>
+                        </div>
+
+                        <!-- The Basementen Params -->
+                        <div class="param-group" id="param-basementen">
+                            <div class="basementen-ctrls" style="display: flex; flex-direction: column; gap: 12px; align-items: flex-start; width: 100%;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 0.85rem; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px;">
+                                        <i data-lucide="shield" style="width: 14px; height: 14px; color: #10b981;"></i> Key Status:
+                                    </span>
+                                    <span id="basementen-key-status" style="font-size: 0.85rem; font-weight: 600; color: #10b981;">Active [Secure 256-bit]</span>
+                                </div>
+                                <div class="input-group" style="width: 100%; margin-top: 5px; margin-bottom: 5px;">
+                                    <label id="basementen-tx-label" for="basementen-tx-password" style="font-size: 0.8rem; margin-bottom: 6px; display: block; color: var(--color-text-secondary); text-align: left;">Transaction Password (cannot be master password):</label>
+                                    <input type="password" id="basementen-tx-password" class="input-text" placeholder="Set password for this transaction" maxlength="32" style="width: 100%; padding: 8px 12px; font-size: 0.85rem;">
+                                    <span id="basementen-tx-error" style="color: #ef4444; font-size: 11px; font-weight: 600; display: block; margin-top: 4px; min-height: 14px;"></span>
+                                </div>
+                                <div class="input-group" id="basementen-name-group" style="width: 100%; margin-top: 5px; margin-bottom: 5px;">
+                                    <label for="basementen-tx-name" style="font-size: 0.8rem; margin-bottom: 6px; display: block; color: var(--color-text-secondary); text-align: left;">Transaction Name:</label>
+                                    <input type="text" id="basementen-tx-name" class="input-text" placeholder="e.g. My Secret Notes" style="width: 100%; padding: 8px 12px; font-size: 0.85rem;">
+                                </div>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap; width: 100%;">
+                                    <button id="basementen-save-tx" class="btn btn-primary btn-sm" style="display: flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="save" style="width: 14px; height: 14px;"></i> Save Transaction
+                                    </button>
+                                    <button id="basementen-gen-key" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Generate New Key
+                                    </button>
+                                    <button id="basementen-view-log" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i> View Key Log
+                                    </button>
+                                    <button id="basementen-reset-pwd" class="btn btn-secondary btn-sm" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; display: flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Wipe & Reset
+                                    </button>
+                                </div>
+                                <button id="basementen-copy-output" class="btn btn-primary btn-sm hidden" style="display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; margin-top: 8px;">
+                                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i> Copy Encoded Output
+                                </button>
+                                <!-- Auto-Recognition Alert/Unlock Form -->
+                                <div id="basementen-auto-recognize-panel" class="hidden" style="width: 100%; border-radius: var(--radius-md); padding: 12px; margin-top: 8px; text-align: left;">
+                                    <span id="basementen-auto-status-title" style="font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                                        <!-- Dynamic title -->
+                                    </span>
+                                    <p id="basementen-auto-status-desc" style="font-size: 0.75rem; margin: 0; line-height: 1.4;"></p>
+                                </div>
                             </div>
                         </div>
 
@@ -190,7 +241,7 @@
                     <!-- INPUT PANEL -->
                     <div class="console-panel glass">
                         <div class="panel-header">
-                            <h3>Plaintext Input</h3>
+                            <h3 id="input-panel-title">Plaintext Input</h3>
                             <div class="header-buttons">
                                 <button id="btn-paste" class="icon-btn" title="Paste text">
                                     <i data-lucide="clipboard"></i>
@@ -209,7 +260,7 @@
                     <!-- OUTPUT PANEL -->
                     <div class="console-panel glass">
                         <div class="panel-header">
-                            <h3>Ciphertext Output</h3>
+                            <h3 id="output-panel-title">Ciphertext Output</h3>
                             <div class="header-buttons">
                                 <button id="btn-shuffle-output" class="icon-btn hidden" title="Shuffle anagram letters">
                                     <i data-lucide="shuffle"></i>
@@ -286,6 +337,126 @@
                     <p style="margin-bottom: 6px;"><strong>iOS (Safari):</strong> Tap the <strong>Share</strong> button (square with arrow up) -> select <strong>"Add to Home Screen"</strong>.</p>
                     <p><strong>Android (Chrome):</strong> Tap the <strong>three-dots menu</strong> -> select <strong>"Add to Home Screen"</strong>.</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- BASEMENTEN SETUP & WARNING MODAL -->
+    <div id="basementen-setup-modal" class="modal-overlay hidden">
+        <div class="modal-content glass" style="max-width: 460px;">
+            <div class="modal-header">
+                <h3><i data-lucide="shield-alert" style="color: #ef4444;"></i> Critical Security Setup</h3>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="warning-alert-box" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: 15px; color: #fca5a5; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 8px;">
+                    <span style="font-weight: 700; color: #ef4444; display: flex; align-items: center; gap: 6px;"><i data-lucide="alert-triangle"></i> ATTENTION REQUIRED</span>
+                    <span>You are about to activate <strong>The Basementen</strong> cipher. You must set a master password to encrypt your generated keys.</span>
+                    <strong style="color: #ffffff;">IMPORTANT: If you lose this password, there is absolutely NO backup or recovery system available. All encrypted logs and keys will be lost forever.</strong>
+                </div>
+
+                <div id="setup-countdown-container" style="text-align: center; padding: 10px; font-weight: 600; color: var(--color-text-secondary);">
+                    Please read the warning above carefully... (<span id="setup-timer-val">10</span>s)
+                </div>
+
+                <form id="basementen-setup-form" style="display: flex; flex-direction: column; gap: 12px; opacity: 0.4; pointer-events: none; transition: opacity 0.3s ease;">
+                    <div class="input-group">
+                        <label for="basementen-setup-pwd-input">Create Master Password</label>
+                        <input type="password" id="basementen-setup-pwd-input" class="input-text" placeholder="Minimum 6 characters" disabled style="width: 100%;">
+                    </div>
+                    <div class="input-group">
+                        <label for="basementen-setup-confirm-input">Confirm Master Password</label>
+                        <input type="password" id="basementen-setup-confirm-input" class="input-text" placeholder="Re-enter password" disabled style="width: 100%;">
+                    </div>
+                    <button type="submit" id="basementen-setup-submit" class="btn btn-primary" style="margin-top: 8px; width: 100%; display: flex; justify-content: center; align-items: center; gap: 6px;" disabled>
+                        <i data-lucide="lock"></i> Save Master Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- BASEMENTEN UNLOCK MODAL -->
+    <div id="basementen-unlock-modal" class="modal-overlay hidden">
+        <div class="modal-content glass" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i data-lucide="lock" style="color: #6366f1;"></i> Unlock Basementen</h3>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc" style="margin-bottom: 15px;">Please enter your master password to access The Basementen cipher workspace.</p>
+                <form id="basementen-unlock-form" style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="input-group">
+                        <input type="password" id="basementen-unlock-pwd-input" class="input-text" placeholder="Enter Master Password" autofocus required style="width: 100%;">
+                    </div>
+                    <div id="basementen-unlock-error" style="color: #ef4444; font-size: 13px; font-weight: 600; text-align: center; min-height: 18px;"></div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <button type="button" id="basementen-unlock-cancel" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                        <button type="submit" id="basementen-unlock-submit" class="btn btn-primary" style="flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                            <i data-lucide="unlock"></i> Unlock
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- BASEMENTEN TRANSACTION LOG MODAL -->
+    <div id="basementen-log-modal" class="modal-overlay hidden">
+        <div class="modal-content glass" style="max-width: 700px; width: 90%;">
+            <div class="modal-header">
+                <h3><i data-lucide="file-text" style="color: #06b6d4;"></i> The Basementen Transaction &amp; Key Log</h3>
+                <button id="basementen-log-close" class="icon-btn">&times;</button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+                <p class="modal-desc" style="margin: 0;">This log displays the exact 256-bit keyword generated and used for each individual encryption or decryption transaction.</p>
+                
+                <div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: var(--radius-md); background: rgba(0,0,0,0.2);">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-glass); background: rgba(255,255,255,0.02); color: var(--color-text-primary);">
+                                <th style="padding: 10px;">Time</th>
+                                <th style="padding: 10px;">Name</th>
+                                <th style="padding: 10px;">Output</th>
+                                <th style="padding: 10px; font-family: var(--font-mono);">256-bit Key</th>
+                            </tr>
+                        </thead>
+                        <tbody id="basementen-log-rows">
+                            <!-- Rows dynamic -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                    <button id="basementen-clear-log" class="btn btn-secondary btn-sm" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Clear Log History
+                    </button>
+                    <button id="basementen-log-ok" class="btn btn-primary btn-sm">Close Log</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BASEMENTEN REVEAL KEY MODAL -->
+    <div id="basementen-reveal-key-modal" class="modal-overlay hidden">
+        <div class="modal-content glass" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i data-lucide="key-round" style="color: #06b6d4;"></i> <span id="basementen-reveal-modal-title">Reveal Secure Key</span></h3>
+                <button id="basementen-reveal-key-close" class="icon-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="basementen-reveal-modal-desc" class="modal-desc" style="margin-bottom: 15px; text-align: left;">Please enter the unique Transaction Password for this log entry to decrypt and reveal the key.</p>
+                <form id="basementen-reveal-key-form" style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="input-group">
+                        <input type="password" id="basementen-reveal-key-pwd-input" class="input-text" placeholder="Enter Transaction Password" autofocus required style="width: 100%;">
+                    </div>
+                    <div id="basementen-reveal-key-error" style="color: #ef4444; font-size: 13px; font-weight: 600; text-align: center; min-height: 18px;"></div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                        <button type="button" id="basementen-reveal-key-cancel" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                        <button type="submit" id="basementen-reveal-key-submit" class="btn btn-primary" style="flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px;">
+                            <i data-lucide="unlock"></i> Reveal
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
