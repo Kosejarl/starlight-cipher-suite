@@ -798,70 +798,108 @@ export const ScandiCaesar = {
 
 /**
  * 10. THE BASEMENTEN CIPHER
+ *
+ * Messages are encrypted with AES-256-GCM via WebCrypto, keyed by the vault's
+ * random 40-character keyword (hashed with SHA-256 to produce the AES key \u2014
+ * fine for high-entropy key material like this; passwords go through PBKDF2
+ * in the vault layer instead). Ciphertext format: "SB1:" + base64(iv || ct).
+ *
+ * Decode transparently falls back to the pre-AES alphabet-shift scheme for
+ * ciphertexts that don't carry the SB1 prefix, so messages saved or shared
+ * before the upgrade still decrypt.
  */
 const ALPHANUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\u00e6\u00f8\u00e5\u00c6\u00d8\u00c5";
+const BASEMENTEN_PREFIX = 'SB1:';
+
+function bytesToBase64(bytes) {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function base64ToBytes(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
+async function basementenAesKey(keyStr) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(keyStr));
+    return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+}
+
+// Pre-AES alphabet-shift decoder, kept only so old ciphertexts remain readable.
+function basementenLegacyDecode(text, key, retainPunctuation) {
+    let result = '';
+    let keyIdx = 0;
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const idx = ALPHANUM.indexOf(char);
+        if (idx !== -1) {
+            const keyChar = key[keyIdx % key.length];
+            const shift = keyChar.charCodeAt(0);
+            const newIndex = ((idx - shift) % ALPHANUM.length + ALPHANUM.length) % ALPHANUM.length;
+            result += ALPHANUM[newIndex];
+            keyIdx++;
+        } else {
+            if (char === ' ') {
+                result += ' ';
+            } else if (retainPunctuation) {
+                result += char;
+            }
+        }
+    }
+
+    return { result, steps: [] };
+}
 
 export const Basementen = {
-    encode(text, key, retainPunctuation) {
+    async encode(text, key) {
         if (!key) {
-            return { result: text, steps: [] };
+            return { result: '', steps: [] };
         }
 
-        let result = '';
-        let keyIdx = 0;
+        const aesKey = await basementenAesKey(key);
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            aesKey,
+            new TextEncoder().encode(text)
+        ));
 
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            const idx = ALPHANUM.indexOf(char);
-            if (idx !== -1) {
-                const keyChar = key[keyIdx % key.length];
-                const shift = keyChar.charCodeAt(0);
-                const newIndex = (idx + shift) % ALPHANUM.length;
-                const encodedChar = ALPHANUM[newIndex];
-                
-                result += encodedChar;
-                keyIdx++;
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                } else if (retainPunctuation) {
-                    result += char;
-                }
-            }
-        }
+        const packed = new Uint8Array(iv.length + ciphertext.length);
+        packed.set(iv);
+        packed.set(ciphertext, iv.length);
 
-        return { result, steps: [] };
+        return { result: BASEMENTEN_PREFIX + bytesToBase64(packed), steps: [] };
     },
 
-    decode(text, key, retainPunctuation) {
+    async decode(text, key, retainPunctuation) {
         if (!key) {
-            return { result: text, steps: [] };
+            return { result: '', steps: [] };
         }
 
-        let result = '';
-        let keyIdx = 0;
-
-        for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            const idx = ALPHANUM.indexOf(char);
-            if (idx !== -1) {
-                const keyChar = key[keyIdx % key.length];
-                const shift = keyChar.charCodeAt(0);
-                const newIndex = ((idx - shift) % ALPHANUM.length + ALPHANUM.length) % ALPHANUM.length;
-                const decodedChar = ALPHANUM[newIndex];
-                
-                result += decodedChar;
-                keyIdx++;
-            } else {
-                if (char === ' ') {
-                    result += ' ';
-                } else if (retainPunctuation) {
-                    result += char;
-                }
+        const trimmed = text.trim();
+        if (trimmed.startsWith(BASEMENTEN_PREFIX)) {
+            try {
+                const packed = base64ToBytes(trimmed.slice(BASEMENTEN_PREFIX.length));
+                const iv = packed.slice(0, 12);
+                const ciphertext = packed.slice(12);
+                const aesKey = await basementenAesKey(key);
+                const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, ciphertext);
+                return { result: new TextDecoder().decode(plaintext), steps: [] };
+            } catch (e) {
+                return { result: '[DECRYPTION FAILED: wrong key or corrupted ciphertext]', steps: [] };
             }
         }
 
-        return { result, steps: [] };
+        return basementenLegacyDecode(text, key, retainPunctuation);
     }
 };
 

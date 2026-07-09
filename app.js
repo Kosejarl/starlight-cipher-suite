@@ -921,8 +921,9 @@ function updateNetworkStatus() {
 
 /**
  * Execute Cryptographic Conversion
+ * (async because The Basementen encrypts via WebCrypto; other ciphers are sync)
  */
-function runConversion() {
+async function runConversion() {
     const input = elements.textInput.value;
     if (!input) {
         elements.textOutput.value = '';
@@ -1033,13 +1034,13 @@ function runConversion() {
                 } else {
                     if (state.mode === 'decode') {
                         if (basementenDecryptedKey !== null) {
-                            resultObj = Basementen.decode(input, basementenDecryptedKey, state.retainPunctuation);
+                            resultObj = await Basementen.decode(input, basementenDecryptedKey, state.retainPunctuation);
                         } else {
                             resultObj = { result: "[LOCKED: Enter Transaction Password in the control panel to load key]", steps: [] };
                         }
                     } else {
                         if (basementenTxValid) {
-                            resultObj = Basementen.encode(input, basementenKey, state.retainPunctuation);
+                            resultObj = await Basementen.encode(input, basementenKey);
                         } else {
                             resultObj = { result: "[LOCKED: Set Transaction Password in the control panel to unlock composition]", steps: [] };
                         }
@@ -1397,11 +1398,20 @@ async function deriveKeyFromPassword(password, salt) {
 // Generate secure random key (40 chars from 92-char printable pool for >256 bits entropy)
 function generate256BitKey() {
     const pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?\u00e6\u00f8\u00e5\u00c6\u00d8\u00c5";
-    const randomBytes = new Uint8Array(40);
-    window.crypto.getRandomValues(randomBytes);
+    const KEY_LENGTH = 40;
+    // Rejection sampling: bytes >= this limit are discarded so every pool
+    // character is equally likely (256 % pool.length !== 0 would otherwise
+    // bias the first few characters of the pool).
+    const maxUnbiased = 256 - (256 % pool.length);
     let key = '';
-    for (let i = 0; i < 40; i++) {
-        key += pool[randomBytes[i] % pool.length];
+    while (key.length < KEY_LENGTH) {
+        const randomBytes = new Uint8Array(KEY_LENGTH);
+        window.crypto.getRandomValues(randomBytes);
+        for (const byte of randomBytes) {
+            if (byte < maxUnbiased && key.length < KEY_LENGTH) {
+                key += pool[byte % pool.length];
+            }
+        }
     }
     return key;
 }
