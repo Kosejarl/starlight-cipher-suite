@@ -105,6 +105,7 @@ const elements = {
     basementenPwdStrengthBar: document.getElementById('basementen-pwd-strength-bar'),
     basementenPwdStrengthLabel: document.getElementById('basementen-pwd-strength-label'),
     basementenSetupSubmit: document.getElementById('basementen-setup-submit'),
+    basementenSetupCancel: document.getElementById('basementen-setup-cancel'),
     basementenUnlockModal: document.getElementById('basementen-unlock-modal'),
     basementenUnlockForm: document.getElementById('basementen-unlock-form'),
     basementenUnlockPwdInput: document.getElementById('basementen-unlock-pwd-input'),
@@ -147,6 +148,75 @@ let deferredPrompt = null;
 
 // Debounce helper for auto-saving history
 let historySaveTimeout = null;
+
+/* ==========================================================================
+   MODAL HELPERS
+   Central open/close so every modal gets Escape-to-dismiss, overlay-click
+   dismiss, a Tab focus trap, and focus restored to the triggering element.
+   ========================================================================== */
+
+// overlay element -> dismiss function (what Escape / overlay click should do)
+const modalRegistry = new Map();
+
+// Focus to restore when each open modal closes (stack: log modal can open
+// the reveal modal on top of itself).
+const modalFocusStack = [];
+
+function openModal(overlay) {
+    modalFocusStack.push(document.activeElement);
+    overlay.classList.remove('hidden');
+}
+
+function closeModal(overlay) {
+    overlay.classList.add('hidden');
+    const previous = modalFocusStack.pop();
+    if (previous && document.contains(previous) && typeof previous.focus === 'function') {
+        previous.focus();
+    }
+}
+
+function registerModal(overlay, dismiss) {
+    modalRegistry.set(overlay, dismiss);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) dismiss();
+    });
+}
+
+// Topmost visible modal = last visible one in registration order
+// (registration order puts stacked-on-top modals later).
+function topVisibleModal() {
+    let top = null;
+    for (const overlay of modalRegistry.keys()) {
+        if (!overlay.classList.contains('hidden')) top = overlay;
+    }
+    return top;
+}
+
+document.addEventListener('keydown', (e) => {
+    const overlay = topVisibleModal();
+    if (!overlay) return;
+
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        modalRegistry.get(overlay)();
+    } else if (e.key === 'Tab') {
+        // Keep Tab cycling inside the open modal
+        const focusables = Array.from(
+            overlay.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')
+        ).filter(el => !el.disabled && el.offsetParent !== null);
+        if (focusables.length === 0) return;
+
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+});
 
 /**
  * Initialize Application
@@ -681,18 +751,21 @@ function bindEvents() {
 
     elements.mobileBtn.addEventListener('click', () => {
         updateQrCode("https://kosejarl.github.io/starlight-cipher-suite/");
-        elements.mobileModal.classList.remove('hidden');
+        openModal(elements.mobileModal);
     });
 
     elements.closeModalBtn.addEventListener('click', () => {
-        elements.mobileModal.classList.add('hidden');
+        closeModal(elements.mobileModal);
     });
 
-    elements.mobileModal.addEventListener('click', (e) => {
-        if (e.target === elements.mobileModal) {
-            elements.mobileModal.classList.add('hidden');
-        }
-    });
+    // Escape / overlay-click dismissal for every modal. Registration order
+    // matters for stacking: the reveal modal opens on top of the log modal,
+    // so it's registered after it and wins the Escape key while visible.
+    registerModal(elements.mobileModal, () => closeModal(elements.mobileModal));
+    registerModal(elements.basementenSetupModal, () => elements.basementenSetupCancel.click());
+    registerModal(elements.basementenUnlockModal, () => elements.basementenUnlockCancel.click());
+    registerModal(elements.basementenLogModal, () => closeModal(elements.basementenLogModal));
+    registerModal(elements.basementenRevealKeyModal, () => closeModal(elements.basementenRevealKeyModal));
 
 
 
@@ -720,7 +793,7 @@ function bindEvents() {
     elements.basementenViewLog.addEventListener('click', () => {
         if (!basementenUnlocked) return;
         renderBasementenLog();
-        elements.basementenLogModal.classList.remove('hidden');
+        openModal(elements.basementenLogModal);
         if (window.lucide) window.lucide.createIcons();
     });
 
@@ -731,11 +804,11 @@ function bindEvents() {
     });
 
     elements.basementenLogClose.addEventListener('click', () => {
-        elements.basementenLogModal.classList.add('hidden');
+        closeModal(elements.basementenLogModal);
     });
 
     elements.basementenLogOk.addEventListener('click', () => {
-        elements.basementenLogModal.classList.add('hidden');
+        closeModal(elements.basementenLogModal);
     });
 
     elements.basementenClearLog.addEventListener('click', () => {
@@ -1618,7 +1691,7 @@ function renderBasementenLog() {
 function promptRevealKey(item, tdKey) {
     elements.basementenRevealModalTitle.textContent = "Reveal Secure Key";
     elements.basementenRevealModalDesc.textContent = "Please enter the unique Transaction Password for this log entry to decrypt and reveal the key.";
-    elements.basementenRevealKeyModal.classList.remove('hidden');
+    openModal(elements.basementenRevealKeyModal);
     elements.basementenRevealKeyPwdInput.value = '';
     elements.basementenRevealKeyError.textContent = '';
     elements.basementenRevealKeyPwdInput.focus();
@@ -1643,7 +1716,7 @@ function promptRevealKey(item, tdKey) {
             tdKey.textContent = payload.key;
             tdKey.style.color = '#10b981';
 
-            elements.basementenRevealKeyModal.classList.add('hidden');
+            closeModal(elements.basementenRevealKeyModal);
         } catch (err) {
             console.error(err);
             elements.basementenRevealKeyError.textContent = "Incorrect password. Key decryption failed.";
@@ -1655,7 +1728,7 @@ function promptRevealKey(item, tdKey) {
 function promptRevealPlaintext(item, cell, field) {
     elements.basementenRevealModalTitle.textContent = "Reveal Plaintext Content";
     elements.basementenRevealModalDesc.textContent = "Please enter the unique Transaction Password for this log entry to decrypt and reveal the secret plaintext.";
-    elements.basementenRevealKeyModal.classList.remove('hidden');
+    openModal(elements.basementenRevealKeyModal);
     elements.basementenRevealKeyPwdInput.value = '';
     elements.basementenRevealKeyError.textContent = '';
     elements.basementenRevealKeyPwdInput.focus();
@@ -1683,7 +1756,7 @@ function promptRevealPlaintext(item, cell, field) {
             cell.title = val;
             cell.style.color = '#10b981';
 
-            elements.basementenRevealKeyModal.classList.add('hidden');
+            closeModal(elements.basementenRevealKeyModal);
         } catch (err) {
             console.error(err);
             elements.basementenRevealKeyError.textContent = "Incorrect password. Verification failed.";
@@ -1693,17 +1766,17 @@ function promptRevealPlaintext(item, cell, field) {
 
 // Reveal Key Modal close listeners
 elements.basementenRevealKeyClose.addEventListener('click', () => {
-    elements.basementenRevealKeyModal.classList.add('hidden');
+    closeModal(elements.basementenRevealKeyModal);
 });
 elements.basementenRevealKeyCancel.addEventListener('click', () => {
-    elements.basementenRevealKeyModal.classList.add('hidden');
+    closeModal(elements.basementenRevealKeyModal);
 });
 
 // Access controller flow
 async function handleBasementenAccess(previousCipher) {
     const hasKey = localStorage.getItem('basementen_encrypted_key');
     if (!hasKey) {
-        showBasementenSetup();
+        showBasementenSetup(previousCipher);
     } else {
         if (!basementenUnlocked) {
             showBasementenUnlock(previousCipher);
@@ -1778,8 +1851,8 @@ function wipeBasementenWorkspace(confirmMessage) {
 }
 
 // 10-second countdown security warning and setup form
-function showBasementenSetup() {
-    elements.basementenSetupModal.classList.remove('hidden');
+function showBasementenSetup(previousCipher) {
+    openModal(elements.basementenSetupModal);
 
     // Reset timer state
     let count = 10;
@@ -1814,6 +1887,19 @@ function showBasementenSetup() {
             elements.basementenSetupSubmit.disabled = false;
         }
     }, 1000);
+
+    // Cancel (header X, Escape, or overlay click): abort setup and go back
+    // to whatever cipher was active before The Basementen was selected.
+    elements.basementenSetupCancel.onclick = () => {
+        clearInterval(interval);
+        elements.basementenSetupPwdInput.value = '';
+        elements.basementenSetupConfirmInput.value = '';
+        closeModal(elements.basementenSetupModal);
+        state.cipher = previousCipher || 'caesar';
+        saveConfigState();
+        setupUIFromState();
+        runConversion();
+    };
 
     // Form submit listener
     form.onsubmit = async (e) => {
@@ -1864,7 +1950,7 @@ function showBasementenSetup() {
             elements.basementenSetupPwdInput.value = '';
             elements.basementenSetupConfirmInput.value = '';
             
-            elements.basementenSetupModal.classList.add('hidden');
+            closeModal(elements.basementenSetupModal);
             saveConfigState();
             setupUIFromState();
             runConversion();
@@ -1878,14 +1964,14 @@ function showBasementenSetup() {
 
 // Unlock with master password verification
 function showBasementenUnlock(previousCipher) {
-    elements.basementenUnlockModal.classList.remove('hidden');
+    openModal(elements.basementenUnlockModal);
     elements.basementenUnlockPwdInput.value = '';
     elements.basementenUnlockError.textContent = '';
     elements.basementenUnlockPwdInput.focus();
 
     // Cancel lock: revert back to previous cipher
     elements.basementenUnlockCancel.onclick = () => {
-        elements.basementenUnlockModal.classList.add('hidden');
+        closeModal(elements.basementenUnlockModal);
         state.cipher = previousCipher || 'caesar';
         saveConfigState();
         setupUIFromState();
@@ -1896,7 +1982,7 @@ function showBasementenUnlock(previousCipher) {
     // since the normal "Wipe & Reset" button lives behind the very unlock screen they're stuck on.
     elements.basementenUnlockForgot.onclick = () => {
         if (wipeBasementenWorkspace("WARNING: This will permanently erase your master password, generated key, and all saved transaction history for The Basementen. This cannot be undone. Continue?")) {
-            elements.basementenUnlockModal.classList.add('hidden');
+            closeModal(elements.basementenUnlockModal);
             alert("The Basementen workspace has been wiped. Select this cipher again to set a new master password.");
         }
     };
@@ -1937,7 +2023,7 @@ function showBasementenUnlock(previousCipher) {
             elements.basementenKeyStatus.textContent = 'Active [Secure 256-bit]';
             elements.basementenKeyStatus.style.color = '#10b981';
 
-            elements.basementenUnlockModal.classList.add('hidden');
+            closeModal(elements.basementenUnlockModal);
             saveConfigState();
             setupUIFromState();
             runConversion();
