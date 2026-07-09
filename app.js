@@ -100,6 +100,8 @@ const elements = {
     basementenSetupForm: document.getElementById('basementen-setup-form'),
     basementenSetupPwdInput: document.getElementById('basementen-setup-pwd-input'),
     basementenSetupConfirmInput: document.getElementById('basementen-setup-confirm-input'),
+    basementenPwdStrengthBar: document.getElementById('basementen-pwd-strength-bar'),
+    basementenPwdStrengthLabel: document.getElementById('basementen-pwd-strength-label'),
     basementenSetupSubmit: document.getElementById('basementen-setup-submit'),
     basementenUnlockModal: document.getElementById('basementen-unlock-modal'),
     basementenUnlockForm: document.getElementById('basementen-unlock-form'),
@@ -697,8 +699,8 @@ function bindEvents() {
                 return;
             }
 
-            if (pwd.length < 6 || pwd.length > 32) {
-                elements.basementenTxError.textContent = 'Password must be between 6 and 32 characters.';
+            if (pwd.length < 10 || pwd.length > 32) {
+                elements.basementenTxError.textContent = 'Password must be between 10 and 32 characters.';
                 basementenTxValid = false;
                 elements.textInput.disabled = true;
                 elements.textInput.value = '';
@@ -1280,7 +1282,7 @@ async function deriveKeyFromPassword(password, salt) {
         {
             name: "PBKDF2",
             salt: salt,
-            iterations: 100000,
+            iterations: 600000,
             hash: "SHA-256"
         },
         baseKey,
@@ -1360,8 +1362,8 @@ async function saveBasementenTransaction(input, output, mode, keyUsed, customNam
         return false;
     }
 
-    if (txPwd.length < 6 || txPwd.length > 32) {
-        elements.basementenTxError.textContent = "Transaction not saved: Password must be between 6 and 32 characters.";
+    if (txPwd.length < 10 || txPwd.length > 32) {
+        elements.basementenTxError.textContent = "Transaction not saved: Password must be between 10 and 32 characters.";
         elements.basementenTxError.style.color = '#ef4444';
         return false;
     }
@@ -1594,16 +1596,52 @@ async function handleBasementenAccess(previousCipher) {
     }
 }
 
+// Simple, dependency-free heuristic password strength scorer (length + character-class
+// variety only, not a real entropy estimate) - just nudges toward a stronger master
+// password in the UI. The actual security boundary is the minimum-length check and PBKDF2.
+function scorePasswordStrength(password) {
+    if (password.length < 10) {
+        return { percent: 20, label: 'Too short (min 10)', color: 'var(--color-danger)' };
+    }
+
+    let classes = 0;
+    if (/[a-z]/.test(password)) classes++;
+    if (/[A-Z]/.test(password)) classes++;
+    if (/[0-9]/.test(password)) classes++;
+    if (/[^A-Za-z0-9]/.test(password)) classes++;
+
+    let score = classes;
+    if (password.length >= 14) score++;
+    if (password.length >= 20) score++;
+
+    if (score <= 2) return { percent: 40, label: 'Weak', color: 'var(--color-danger)' };
+    if (score === 3) return { percent: 60, label: 'Fair', color: 'var(--color-warning)' };
+    if (score === 4) return { percent: 80, label: 'Good', color: '#84cc16' };
+    return { percent: 100, label: 'Strong', color: 'var(--color-success)' };
+}
+
+function updatePasswordStrengthMeter(password) {
+    if (!password) {
+        elements.basementenPwdStrengthBar.style.width = '0%';
+        elements.basementenPwdStrengthLabel.textContent = ' ';
+        return;
+    }
+    const { percent, label, color } = scorePasswordStrength(password);
+    elements.basementenPwdStrengthBar.style.width = `${percent}%`;
+    elements.basementenPwdStrengthBar.style.background = color;
+    elements.basementenPwdStrengthLabel.textContent = label;
+}
+
 // 10-second countdown security warning and setup form
 function showBasementenSetup() {
     elements.basementenSetupModal.classList.remove('hidden');
-    
+
     // Reset timer state
     let count = 10;
     const timerSpan = document.getElementById('setup-timer-val');
     const container = document.getElementById('setup-countdown-container');
     const form = elements.basementenSetupForm;
-    
+
     timerSpan.textContent = count;
     container.style.display = 'block';
     form.style.opacity = '0.4';
@@ -1611,6 +1649,12 @@ function showBasementenSetup() {
     elements.basementenSetupPwdInput.disabled = true;
     elements.basementenSetupConfirmInput.disabled = true;
     elements.basementenSetupSubmit.disabled = true;
+
+    // Reset and wire up the live password strength meter
+    updatePasswordStrengthMeter('');
+    elements.basementenSetupPwdInput.oninput = (e) => {
+        updatePasswordStrengthMeter(e.target.value);
+    };
 
     const interval = setInterval(() => {
         count--;
@@ -1632,8 +1676,8 @@ function showBasementenSetup() {
         const password = elements.basementenSetupPwdInput.value;
         const confirm = elements.basementenSetupConfirmInput.value;
 
-        if (password.length < 6) {
-            alert("Password must be at least 6 characters.");
+        if (password.length < 10) {
+            alert("Password must be at least 10 characters.");
             return;
         }
         if (password !== confirm) {

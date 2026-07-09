@@ -370,7 +370,11 @@
                 <form id="basementen-setup-form" style="display: flex; flex-direction: column; gap: 12px; opacity: 0.4; pointer-events: none; transition: opacity 0.3s ease;">
                     <div class="input-group">
                         <label for="basementen-setup-pwd-input">Create Master Password</label>
-                        <input type="password" id="basementen-setup-pwd-input" class="input-text" placeholder="Minimum 6 characters" disabled style="width: 100%;">
+                        <input type="password" id="basementen-setup-pwd-input" class="input-text" placeholder="Minimum 10 characters" disabled style="width: 100%;">
+                        <div class="pwd-strength-meter">
+                            <div class="pwd-strength-bar" id="basementen-pwd-strength-bar"></div>
+                        </div>
+                        <div class="pwd-strength-label" id="basementen-pwd-strength-label">&nbsp;</div>
                     </div>
                     <div class="input-group">
                         <label for="basementen-setup-confirm-input">Confirm Master Password</label>

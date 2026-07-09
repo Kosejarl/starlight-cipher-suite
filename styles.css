@@ -1203,3 +1203,28 @@ body.mode-decode .mode-btn.active {
     transition: border-color var(--transition-normal), box-shadow var(--transition-normal), background var(--transition-normal);
 }
 
+/* Master Password Strength Meter */
+.pwd-strength-meter {
+    width: 100%;
+    height: 5px;
+    border-radius: 50px;
+    background: rgba(255, 255, 255, 0.08);
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.pwd-strength-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 50px;
+    background: var(--color-danger);
+    transition: width var(--transition-fast), background-color var(--transition-fast);
+}
+
+.pwd-strength-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+    min-height: 1em;
+}
+
