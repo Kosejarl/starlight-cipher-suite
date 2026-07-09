@@ -32,8 +32,8 @@ let basementenDecryptedKey = null;
 
 // DOM Elements
 const elements = {
-    // Navigation
-    cipherBtns: document.querySelectorAll('.cipher-select-btn'),
+    // Navigation (assigned in init() after renderCipherNav() generates the buttons)
+    cipherBtns: null,
     // Modes
     modeSelector: document.querySelector('.mode-selector'),
     modeEncode: document.getElementById('mode-encode'),
@@ -42,14 +42,7 @@ const elements = {
     optPunctuation: document.getElementById('option-punctuation'),
     optProcess: document.getElementById('option-process'),
     processSection: document.getElementById('process-section'),
-    // Inputs & Parameters
-    paramCaesar: document.getElementById('param-caesar'),
-    paramScandicaesar: document.getElementById('param-scandicaesar'),
-    paramVigenere: document.getElementById('param-vigenere'),
-    paramRailfence: document.getElementById('param-railfence'),
-    paramAnagram: document.getElementById('param-anagram'),
-    paramNone: document.getElementById('param-none'),
-    
+    // Inputs & Parameters (param-group panels are looked up by id via the registry)
     caesarShift: document.getElementById('caesar-shift'),
     shiftValue: document.getElementById('shift-value'),
     caesarShiftDown: document.getElementById('caesar-shift-down'),
@@ -93,7 +86,6 @@ const elements = {
     qrUrlText: document.getElementById('qr-url-text'),
 
     // Basementen elements
-    paramBasementen: document.getElementById('param-basementen'),
     basementenGenKey: document.getElementById('basementen-gen-key'),
     basementenViewLog: document.getElementById('basementen-view-log'),
     basementenResetPwd: document.getElementById('basementen-reset-pwd'),
@@ -153,6 +145,162 @@ const elements = {
     outputPanelTitle: document.getElementById('output-panel-title'),
     basementenCopyOutput: document.getElementById('basementen-copy-output')
 };
+
+/* ==========================================================================
+   CIPHER REGISTRY
+   Single source of truth for every cipher: sidebar entry (name/icon/badge),
+   parameter panel, history label, and the conversion dispatch. Adding a new
+   cipher means adding one entry here (plus a param panel in index.html if it
+   needs configuration).
+
+   Fields:
+   - id:         internal identifier (persisted in state & history)
+   - name:       sidebar display name
+   - shortName:  compact label used in the history list
+   - icon:       lucide icon name
+   - badge:      optional { text, className } sidebar badge
+   - paramGroup: DOM id of the parameter panel to show
+   - run:        (input, mode, opts) => { result, steps } (may be async);
+                 reads its parameters from the DOM and owns its inline
+                 validation errors. Omitted for the anagram helper, which
+                 short-circuits in runConversion before dispatch.
+   ========================================================================== */
+const CIPHERS = [
+    {
+        id: 'a1z26', name: 'A1Z26 Cipher', shortName: 'A1Z26', icon: 'hash', paramGroup: 'param-none',
+        run: (input, mode, opts) => mode === 'encode'
+            ? A1z26.encode(input, null, opts.retainPunctuation)
+            : A1z26.decode(input, null, opts.retainPunctuation)
+    },
+    {
+        id: 'anagram', name: 'Anagram Helper', shortName: 'Anagram', icon: 'shuffle',
+        badge: { text: 'Helper', className: 'badge-helper' }, paramGroup: 'param-anagram'
+    },
+    {
+        id: 'atbash', name: 'Atbash Cipher', shortName: 'Atbash', icon: 'shuffle', paramGroup: 'param-none',
+        run: (input, mode, opts) => mode === 'encode'
+            ? Atbash.encode(input, null, opts.retainPunctuation)
+            : Atbash.decode(input, null, opts.retainPunctuation)
+    },
+    {
+        id: 'binary', name: 'Binary Converter', shortName: 'Binary', icon: 'binary', paramGroup: 'param-none',
+        run: (input, mode, opts) => mode === 'encode'
+            ? BinaryConverter.encode(input, null, opts.retainPunctuation)
+            : BinaryConverter.decode(input, null, opts.retainPunctuation)
+    },
+    {
+        id: 'binreverse', name: 'Binary Reverse', shortName: 'Binary Reverse', icon: 'lock',
+        badge: { text: 'Custom' }, paramGroup: 'param-none',
+        run: (input, mode, opts) => mode === 'encode'
+            ? BinaryReverse.encode(input, 'fixed', opts.retainPunctuation)
+            : BinaryReverse.decode(input, 'fixed', opts.retainPunctuation)
+    },
+    {
+        id: 'caesar', name: 'Caesar Cipher', shortName: 'Caesar', icon: 'key-round', paramGroup: 'param-caesar',
+        run: (input, mode, opts) => {
+            const shift = parseInt(elements.caesarShift.value, 10);
+            return mode === 'encode'
+                ? Caesar.encode(input, shift, opts.retainPunctuation)
+                : Caesar.decode(input, shift, opts.retainPunctuation);
+        }
+    },
+    {
+        id: 'railfence', name: 'Rail Fence', shortName: 'Rail Fence', icon: 'rows', paramGroup: 'param-railfence',
+        run: (input, mode, opts) => {
+            const rails = parseInt(elements.railfenceRails.value, 10);
+            const railsValid = !isNaN(rails) && rails >= 2 && rails <= 10;
+            elements.railfenceError.textContent = railsValid ? '' : 'Number of rails must be between 2 and 10.';
+            if (!railsValid) {
+                return { result: '', steps: [{ title: 'Error', content: 'Number of rails must be between 2 and 10. Output cleared.' }] };
+            }
+            return mode === 'encode'
+                ? RailFence.encode(input, rails, opts.retainPunctuation)
+                : RailFence.decode(input, rails, opts.retainPunctuation);
+        }
+    },
+    {
+        id: 'rot13', name: 'ROT13 Cipher', shortName: 'ROT13', icon: 'refresh-cw', paramGroup: 'param-none',
+        run: (input, mode, opts) => mode === 'encode'
+            ? Rot13.encode(input, null, opts.retainPunctuation)
+            : Rot13.decode(input, null, opts.retainPunctuation)
+    },
+    {
+        id: 'scandicaesar', name: 'Scandi Caesar', shortName: 'Scandi Caesar', icon: 'globe',
+        badge: { text: 'Scandi', className: 'badge-scandi' }, paramGroup: 'param-scandicaesar',
+        run: (input, mode, opts) => {
+            const shift = parseInt(elements.scandicaesarShift.value, 10);
+            const variant = elements.scandicaesarLang.value;
+            return mode === 'encode'
+                ? ScandiCaesar.encode(input, shift, variant, opts.retainPunctuation)
+                : ScandiCaesar.decode(input, shift, variant, opts.retainPunctuation);
+        }
+    },
+    {
+        id: 'basementen', name: 'The Basementen', shortName: 'The Basementen', icon: 'shield-alert',
+        badge: { text: 'Secure', className: 'badge-secure' }, paramGroup: 'param-basementen',
+        run: async (input, mode, opts) => {
+            if (!basementenUnlocked) {
+                return { result: "LOCKED: Please enter master password", steps: [] };
+            }
+            if (mode === 'decode') {
+                if (basementenDecryptedKey !== null) {
+                    return Basementen.decode(input, basementenDecryptedKey, opts.retainPunctuation);
+                }
+                return { result: "[LOCKED: Enter Transaction Password in the control panel to load key]", steps: [] };
+            }
+            if (basementenTxValid) {
+                return Basementen.encode(input, basementenKey);
+            }
+            return { result: "[LOCKED: Set Transaction Password in the control panel to unlock composition]", steps: [] };
+        }
+    },
+    {
+        id: 'vigenere', name: 'Vigenere Cipher', shortName: 'Vigenere', icon: 'keyboard', paramGroup: 'param-vigenere',
+        run: (input, mode, opts) => {
+            const key = elements.vigenereKey.value;
+            const hasKey = key.replace(/[^A-Za-z]/g, '').length > 0;
+            elements.vigenereError.textContent = hasKey ? '' : 'Enter a keyword (letters) to produce output.';
+            return mode === 'encode'
+                ? Vigenere.encode(input, key, opts.retainPunctuation)
+                : Vigenere.decode(input, key, opts.retainPunctuation);
+        }
+    }
+];
+
+function getCipher(id) {
+    return CIPHERS.find(c => c.id === id) || null;
+}
+
+/**
+ * Generate the sidebar buttons from the registry.
+ */
+function renderCipherNav() {
+    const nav = document.querySelector('.cipher-nav');
+    nav.innerHTML = '';
+    for (const cipher of CIPHERS) {
+        const btn = document.createElement('button');
+        btn.className = 'cipher-select-btn';
+        btn.dataset.cipher = cipher.id;
+
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', cipher.icon);
+        btn.appendChild(icon);
+
+        const name = document.createElement('span');
+        name.className = 'cipher-name';
+        name.textContent = cipher.name;
+        btn.appendChild(name);
+
+        if (cipher.badge) {
+            const badge = document.createElement('span');
+            badge.className = 'badge-custom' + (cipher.badge.className ? ` ${cipher.badge.className}` : '');
+            badge.textContent = cipher.badge.text;
+            btn.appendChild(badge);
+        }
+
+        nav.appendChild(btn);
+    }
+}
 
 // Global PWA Install prompt pointer
 let deferredPrompt = null;
@@ -316,6 +464,10 @@ document.addEventListener('keydown', (e) => {
  * Initialize Application
  */
 function init() {
+    // Build the sidebar from the cipher registry
+    renderCipherNav();
+    elements.cipherBtns = document.querySelectorAll('.cipher-select-btn');
+
     // Load config from LocalStorage if exists
     loadSavedState();
     
@@ -559,13 +711,9 @@ function setupUIFromState() {
  */
 function showActiveParameterGroup() {
     // Hide all
-    elements.paramCaesar.classList.remove('active-param');
-    elements.paramScandicaesar.classList.remove('active-param');
-    elements.paramVigenere.classList.remove('active-param');
-    elements.paramRailfence.classList.remove('active-param');
-    elements.paramAnagram.classList.remove('active-param');
-    elements.paramBasementen.classList.remove('active-param');
-    elements.paramNone.classList.remove('active-param');
+    document.querySelectorAll('.cipher-params .param-group').forEach(group => {
+        group.classList.remove('active-param');
+    });
 
     // Show correct one and handle output panel layout based on state
     if (state.cipher === 'anagram') {
@@ -588,28 +736,10 @@ function showActiveParameterGroup() {
         elements.btnShuffleOutput.classList.add('hidden');
     }
 
-    switch (state.cipher) {
-        case 'caesar':
-            elements.paramCaesar.classList.add('active-param');
-            break;
-        case 'scandicaesar':
-            elements.paramScandicaesar.classList.add('active-param');
-            break;
-        case 'basementen':
-            elements.paramBasementen.classList.add('active-param');
-            break;
-        case 'vigenere':
-            elements.paramVigenere.classList.add('active-param');
-            break;
-        case 'railfence':
-            elements.paramRailfence.classList.add('active-param');
-            break;
-        case 'anagram':
-            elements.paramAnagram.classList.add('active-param');
-            break;
-        default:
-            elements.paramNone.classList.add('active-param');
-            break;
+    const entry = getCipher(state.cipher);
+    const paramGroup = document.getElementById(entry ? entry.paramGroup : 'param-none');
+    if (paramGroup) {
+        paramGroup.classList.add('active-param');
     }
 }
 
@@ -1154,92 +1284,11 @@ async function runConversion() {
 
     let resultObj = { result: '', steps: [] };
 
-    // Select cipher algorithm
+    // Dispatch through the cipher registry
     try {
-        switch (state.cipher) {
-            case 'caesar': {
-                const shift = parseInt(elements.caesarShift.value, 10);
-                resultObj = state.mode === 'encode' 
-                    ? Caesar.encode(input, shift, state.retainPunctuation) 
-                    : Caesar.decode(input, shift, state.retainPunctuation);
-                break;
-            }
-            case 'scandicaesar': {
-                const shift = parseInt(elements.scandicaesarShift.value, 10);
-                const variant = elements.scandicaesarLang.value;
-                resultObj = state.mode === 'encode' 
-                    ? ScandiCaesar.encode(input, shift, variant, state.retainPunctuation) 
-                    : ScandiCaesar.decode(input, shift, variant, state.retainPunctuation);
-                break;
-            }
-            case 'rot13':
-                resultObj = state.mode === 'encode'
-                    ? Rot13.encode(input, null, state.retainPunctuation)
-                    : Rot13.decode(input, null, state.retainPunctuation);
-                break;
-            case 'atbash':
-                resultObj = state.mode === 'encode'
-                    ? Atbash.encode(input, null, state.retainPunctuation)
-                    : Atbash.decode(input, null, state.retainPunctuation);
-                break;
-            case 'vigenere': {
-                const key = elements.vigenereKey.value;
-                const hasKey = key.replace(/[^A-Za-z]/g, '').length > 0;
-                elements.vigenereError.textContent = hasKey ? '' : 'Enter a keyword (letters) to produce output.';
-                resultObj = state.mode === 'encode'
-                    ? Vigenere.encode(input, key, state.retainPunctuation)
-                    : Vigenere.decode(input, key, state.retainPunctuation);
-                break;
-            }
-            case 'railfence': {
-                const rails = parseInt(elements.railfenceRails.value, 10);
-                const railsValid = !isNaN(rails) && rails >= 2 && rails <= 10;
-                elements.railfenceError.textContent = railsValid ? '' : 'Number of rails must be between 2 and 10.';
-                if (!railsValid) {
-                    resultObj = { result: '', steps: [{ title: 'Error', content: 'Number of rails must be between 2 and 10. Output cleared.' }] };
-                    break;
-                }
-                resultObj = state.mode === 'encode'
-                    ? RailFence.encode(input, rails, state.retainPunctuation)
-                    : RailFence.decode(input, rails, state.retainPunctuation);
-                break;
-            }
-            case 'binary':
-                resultObj = state.mode === 'encode'
-                    ? BinaryConverter.encode(input, null, state.retainPunctuation)
-                    : BinaryConverter.decode(input, null, state.retainPunctuation);
-                break;
-            case 'a1z26':
-                resultObj = state.mode === 'encode'
-                    ? A1z26.encode(input, null, state.retainPunctuation)
-                    : A1z26.decode(input, null, state.retainPunctuation);
-                break;
-            case 'binreverse': {
-                resultObj = state.mode === 'encode'
-                    ? BinaryReverse.encode(input, 'fixed', state.retainPunctuation)
-                    : BinaryReverse.decode(input, 'fixed', state.retainPunctuation);
-                break;
-            }
-            case 'basementen': {
-                if (!basementenUnlocked) {
-                    resultObj = { result: "LOCKED: Please enter master password", steps: [] };
-                } else {
-                    if (state.mode === 'decode') {
-                        if (basementenDecryptedKey !== null) {
-                            resultObj = await Basementen.decode(input, basementenDecryptedKey, state.retainPunctuation);
-                        } else {
-                            resultObj = { result: "[LOCKED: Enter Transaction Password in the control panel to load key]", steps: [] };
-                        }
-                    } else {
-                        if (basementenTxValid) {
-                            resultObj = await Basementen.encode(input, basementenKey);
-                        } else {
-                            resultObj = { result: "[LOCKED: Set Transaction Password in the control panel to unlock composition]", steps: [] };
-                        }
-                    }
-                }
-                break;
-            }
+        const entry = getCipher(state.cipher);
+        if (entry && entry.run) {
+            resultObj = await entry.run(input, state.mode, { retainPunctuation: state.retainPunctuation });
         }
     } catch (e) {
         resultObj = { result: `Error executing conversion: ${e.message}`, steps: [{ title: 'Execution Failure', content: e.stack }] };
@@ -1460,23 +1509,11 @@ function renderHistory() {
 }
 
 /**
- * Format system name to readable name
+ * Format system name to readable name (from the cipher registry)
  */
 function getFriendlyCipherName(id) {
-    const names = {
-        caesar: 'Caesar',
-        rot13: 'ROT13',
-        atbash: 'Atbash',
-        vigenere: 'Vigenere',
-        railfence: 'Rail Fence',
-        binary: 'Binary',
-        a1z26: 'A1Z26',
-        binreverse: 'Binary Reverse',
-        scandicaesar: 'Scandi Caesar',
-        anagram: 'Anagram',
-        basementen: 'The Basementen'
-    };
-    return names[id] || id;
+    const entry = getCipher(id);
+    return entry ? entry.shortName : id;
 }
 
 // Escape helper for HTML injection safety
