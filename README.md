@@ -36,3 +36,17 @@ The built app lands in `dist/`.
 ## Privacy
 
 Every cipher operation runs entirely client-side. The desktop app's bundled server binds only to `127.0.0.1` and is never exposed to your network.
+
+## Testing
+
+```bash
+npm install       # fetches the Playwright test driver only, no other dependencies
+npm test          # unit tests (ciphers.js) + browser-driven security tests (the vault)
+npm run test:unit
+npm run test:security
+```
+
+The security suite drives a real browser against the vault ("The Basementen") to check
+things like: the master key is encrypted at rest, wrong passwords and tampered storage
+fail closed, the vault auto-locks on idle/tab-hidden, and user-supplied transaction data
+can't inject markup into the history views.
