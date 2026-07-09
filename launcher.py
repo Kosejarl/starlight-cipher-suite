@@ -19,7 +19,7 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 # Setup file logging in the temp directory to help diagnose issues in windowed mode
-log_path = os.path.join(tempfile.gettempdir(), "starlight_cipher_suite.log")
+log_path = os.path.join(tempfile.gettempdir(), "basementen_aegis.log")
 try:
     log_file = open(log_path, "w", encoding="utf-8", buffering=1)
     sys.stdout = log_file
@@ -136,7 +136,7 @@ def offer_certificate_trust():
 def main():
     global httpd, PORT
 
-    log("Initializing Starlight Cipher Suite Standalone Desktop Application")
+    log("Initializing Basementen Aegis Standalone Desktop Application")
     log(f"CWD: {os.getcwd()}")
     log(f"Resource path: {resource_path('.')}")
 
@@ -169,7 +169,7 @@ def main():
     # This avoids IPv6 DNS resolution issues with 'localhost' on Windows
     log(f"Creating webview window pointing to http://127.0.0.1:{PORT}")
     webview.create_window(
-        title="Starlight Cipher Suite",
+        title="Basementen Aegis",
         url=f"http://127.0.0.1:{PORT}",
         width=1200,
         height=800,

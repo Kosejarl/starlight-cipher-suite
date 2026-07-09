@@ -1,5 +1,5 @@
 /**
- * Starlight Cipher Suite - App Controller
+ * Basementen Aegis - App Controller
  */
 
 import {
