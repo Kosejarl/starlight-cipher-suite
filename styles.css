@@ -1228,3 +1228,23 @@ body.mode-decode .mode-btn.active {
     min-height: 1em;
 }
 
+/* De-emphasized destructive text link (e.g. "Forgot your password?" recovery option) */
+.btn-link-danger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+    padding: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: var(--transition-fast);
+}
+
+.btn-link-danger:hover {
+    color: var(--color-danger);
+}
+

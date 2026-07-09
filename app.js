@@ -108,6 +108,7 @@ const elements = {
     basementenUnlockPwdInput: document.getElementById('basementen-unlock-pwd-input'),
     basementenUnlockError: document.getElementById('basementen-unlock-error'),
     basementenUnlockCancel: document.getElementById('basementen-unlock-cancel'),
+    basementenUnlockForgot: document.getElementById('basementen-unlock-forgot'),
     basementenLogModal: document.getElementById('basementen-log-modal'),
     basementenLogRows: document.getElementById('basementen-log-rows'),
     basementenLogClose: document.getElementById('basementen-log-close'),
@@ -650,21 +651,7 @@ function bindEvents() {
     });
 
     elements.basementenResetPwd.addEventListener('click', () => {
-        if (confirm("WARNING: Are you sure you want to wipe all transaction history, generated keys, and master password for The Basementen? This cannot be undone!")) {
-            localStorage.removeItem('basementen_encrypted_key');
-            localStorage.removeItem('basementen_salt');
-            localStorage.removeItem('basementen_iv');
-            localStorage.removeItem('basementen_history');
-            basementenUnlocked = false;
-            basementenKey = '';
-            basementenCryptoKey = null;
-            elements.basementenKeyStatus.textContent = 'Locked [Requires Verification]';
-            elements.basementenKeyStatus.style.color = '#ef4444';
-            
-            state.cipher = 'caesar';
-            saveConfigState();
-            setupUIFromState();
-            runConversion();
+        if (wipeBasementenWorkspace("WARNING: Are you sure you want to wipe all transaction history, generated keys, and master password for The Basementen? This cannot be undone!")) {
             alert("The Basementen workspace has been fully wiped and reset.");
         }
     });
@@ -1632,6 +1619,33 @@ function updatePasswordStrengthMeter(password) {
     elements.basementenPwdStrengthLabel.textContent = label;
 }
 
+// Wipe all Basementen state (master password, generated key, transaction history) from
+// localStorage and fall back to a plain cipher. Used both by the always-available "Wipe &
+// Reset" button and by the "Forgot your password?" recovery link in the unlock modal, since
+// that's the only reachable escape hatch when someone can't remember their master password.
+// Returns true if the user confirmed and the wipe happened, false if they backed out.
+function wipeBasementenWorkspace(confirmMessage) {
+    if (!confirm(confirmMessage)) {
+        return false;
+    }
+
+    localStorage.removeItem('basementen_encrypted_key');
+    localStorage.removeItem('basementen_salt');
+    localStorage.removeItem('basementen_iv');
+    localStorage.removeItem('basementen_history');
+    basementenUnlocked = false;
+    basementenKey = '';
+    basementenCryptoKey = null;
+    elements.basementenKeyStatus.textContent = 'Locked [Requires Verification]';
+    elements.basementenKeyStatus.style.color = '#ef4444';
+
+    state.cipher = 'caesar';
+    saveConfigState();
+    setupUIFromState();
+    runConversion();
+    return true;
+}
+
 // 10-second countdown security warning and setup form
 function showBasementenSetup() {
     elements.basementenSetupModal.classList.remove('hidden');
@@ -1745,6 +1759,15 @@ function showBasementenUnlock(previousCipher) {
         saveConfigState();
         setupUIFromState();
         runConversion();
+    };
+
+    // Forgotten password: this modal is the only place someone locked out can reach a reset,
+    // since the normal "Wipe & Reset" button lives behind the very unlock screen they're stuck on.
+    elements.basementenUnlockForgot.onclick = () => {
+        if (wipeBasementenWorkspace("WARNING: This will permanently erase your master password, generated key, and all saved transaction history for The Basementen. This cannot be undone. Continue?")) {
+            elements.basementenUnlockModal.classList.add('hidden');
+            alert("The Basementen workspace has been wiped. Select this cipher again to set a new master password.");
+        }
     };
 
     elements.basementenUnlockForm.onsubmit = async (e) => {
