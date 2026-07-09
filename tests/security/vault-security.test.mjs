@@ -210,6 +210,47 @@ test('user-supplied transaction data cannot inject markup into the history/log v
     assert.equal(injectedElementExists, false, 'the payload must be rendered as inert text, not parsed as an element');
 });
 
+test('clipboard is auto-cleared some time after copying vault ciphertext', async () => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setupVault();
+
+    await page.fill('#basementen-tx-password', 'AnotherStrongTxPass1!');
+    await page.fill('#text-input', 'clipboard auto-clear test');
+    await page.waitForTimeout(300);
+    await page.click('#basementen-copy-output');
+    await page.waitForTimeout(300);
+
+    const rightAfterCopy = await page.evaluate(() => navigator.clipboard.readText());
+    assert.notEqual(rightAfterCopy, '', 'the ciphertext should be on the clipboard right after copying');
+
+    await page.clock.runFor(35_000);
+    await page.waitForTimeout(300);
+
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '', 'the clipboard must be cleared after the auto-clear delay');
+});
+
+test('clipboard auto-clear never overwrites content the user copied afterward', async () => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setupVault();
+
+    await page.fill('#basementen-tx-password', 'AnotherStrongTxPass1!');
+    await page.fill('#text-input', 'clipboard auto-clear test 2');
+    await page.waitForTimeout(300);
+    await page.click('#basementen-copy-output');
+    await page.waitForTimeout(300);
+
+    await page.evaluate(() => navigator.clipboard.writeText('something the user copied afterward'));
+
+    await page.clock.runFor(35_000);
+    await page.waitForTimeout(300);
+
+    assert.equal(
+        await page.evaluate(() => navigator.clipboard.readText()),
+        'something the user copied afterward',
+        'auto-clear must not clobber newer clipboard content'
+    );
+});
+
 test('KDF parameters have not regressed below their documented floors', async () => {
     const source = await readFile(path.join(REPO_ROOT, 'app.js'), 'utf8');
 

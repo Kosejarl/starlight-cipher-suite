@@ -546,10 +546,16 @@ function bindEvents() {
             const originalIcon = copyIcon.getAttribute('data-lucide');
             copyIcon.setAttribute('data-lucide', 'check');
             if (window.lucide) window.lucide.createIcons();
-            
+
             // Add immediately to history when they explicitly copy (as they finished working with it)
             saveToHistory(elements.textInput.value, text);
-            
+
+            // This box can hold revealed vault plaintext/ciphertext - don't leave it on the
+            // clipboard indefinitely. Harmless no-op for the other, non-secret ciphers too.
+            if (state.cipher === 'basementen') {
+                scheduleClipboardClear(text);
+            }
+
             setTimeout(() => {
                 copyIcon.setAttribute('data-lucide', originalIcon);
                 if (window.lucide) window.lucide.createIcons();
@@ -772,6 +778,7 @@ function bindEvents() {
         if (success) {
             navigator.clipboard.writeText(outputVal).then(() => {
                 alert("Transaction saved successfully to vault log and ciphertext output copied to clipboard!");
+                scheduleClipboardClear(outputVal);
             }).catch(err => {
                 console.error("Clipboard copy failed on save", err);
                 alert("Transaction saved successfully to vault log!");
@@ -803,6 +810,7 @@ function bindEvents() {
             alert("Encoded output ciphertext copied to clipboard!");
             // Auto save to history when explicitly copied
             saveToHistory(elements.textInput.value, val);
+            scheduleClipboardClear(val);
         }).catch(err => {
             console.error("Clipboard copy failed", err);
         });
@@ -1291,6 +1299,24 @@ function startBasementenIdleWatcher() {
             lockBasementen();
         }
     }, 15000);
+}
+
+const CLIPBOARD_AUTO_CLEAR_MS = 30000; // 30s: enough time to paste once, gone well before it's likely needed again
+
+// Best-effort: clears the OS clipboard some time after sensitive vault content (revealed
+// plaintext or a generated key) was copied to it, but only if the clipboard still holds
+// exactly what we put there - never clobbers something the user copied since.
+function scheduleClipboardClear(copiedText) {
+    setTimeout(async () => {
+        try {
+            const current = await navigator.clipboard.readText();
+            if (current === copiedText) {
+                await navigator.clipboard.writeText('');
+            }
+        } catch (err) {
+            // Reading the clipboard can fail if the tab lost focus/permission - nothing to do.
+        }
+    }, CLIPBOARD_AUTO_CLEAR_MS);
 }
 
 // Hex conversion helpers

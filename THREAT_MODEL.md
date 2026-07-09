@@ -111,6 +111,7 @@ that executes there, whether it's `app.js` or an injected one) has equal access 
 | Backgrounding the tab while unlocked | Immediate lock on `visibilitychange` | `startBasementenIdleWatcher` |
 | Plaintext/ciphertext lingering in the compose boxes after a lock | Cleared as part of `lockBasementen()` | `app.js` |
 | Transaction password accidentally reusing the master password | Checked and rejected before saving | `isMasterPassword` |
+| Revealed plaintext/ciphertext lingering on the OS clipboard | Auto-cleared ~30s after copying, but only if the clipboard still holds exactly what was copied (never clobbers a later copy) | `scheduleClipboardClear`, tested |
 
 ### Rendering / injection
 
@@ -145,10 +146,11 @@ than a surprise later.
   single master key is migrated on next unlock; per-transaction entries created before
   this change keep their original `kdf` tag and stay on legacy PBKDF2 indefinitely (still
   a real KDF, just a weaker one). Re-saving a transaction is the only way to upgrade it.
-- **Revealed plaintext can be copied to the OS clipboard** (`app.js`, several
-  `navigator.clipboard.writeText` call sites). The clipboard is shared, unencrypted OS
-  state that other apps (including clipboard-history managers) can read and that this app
-  has no control over once the copy happens.
+- **Revealed plaintext can still be copied to the OS clipboard**, and the clipboard is
+  shared, unencrypted OS state that other apps (including clipboard-history managers) can
+  read. `scheduleClipboardClear()` wipes it ~30s after a vault-related copy (and only if
+  nothing newer has been copied since), which bounds the exposure window but can't reach
+  into a clipboard-history tool that already snapshotted it in that window.
 - **No password strength enforcement beyond a 10-character minimum and an advisory
   strength meter.** A weak-but-long-enough password is a weak link Argon2id's cost factor
   cannot fully compensate for.
@@ -170,11 +172,10 @@ than a surprise later.
 
 Roughly in order of value for effort:
 
-1. Auto-clear the clipboard a short time after copying revealed vault plaintext.
-2. Offer an explicit "re-encrypt this entry" action in the transaction log so users can
+1. Offer an explicit "re-encrypt this entry" action in the transaction log so users can
    opt individual old entries into Argon2id without re-typing the whole transaction.
-3. Fix the `file://` ES-module loading issue (either drop the module/`import` split for
+2. Fix the `file://` ES-module loading issue (either drop the module/`import` split for
    `app.js`/`ciphers.js`, or update the README to stop recommending direct `file://` use).
-4. If this is ever self-hosted rather than run locally, serve it over HTTPS and consider
+3. If this is ever self-hosted rather than run locally, serve it over HTTPS and consider
    a restrictive Content-Security-Policy — cheap insurance against a future XSS bug given
    how much this app keeps in `localStorage`.
