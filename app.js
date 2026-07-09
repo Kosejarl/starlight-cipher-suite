@@ -169,6 +169,73 @@ function init() {
     if (window.lucide) {
         window.lucide.createIcons();
     }
+
+    // Register service worker for true offline support
+    registerServiceWorker();
+}
+
+/**
+ * Register the cache-first service worker and surface a toast when a new
+ * version has finished downloading in the background.
+ */
+function registerServiceWorker() {
+    // Service workers require http(s); opening index.html via file:// still works,
+    // it just skips offline caching (the desktop app serves over 127.0.0.1).
+    if (!('serviceWorker' in navigator) || window.location.protocol === 'file:') return;
+
+    navigator.serviceWorker.register('sw.js').then((registration) => {
+        registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+                // 'installed' with an existing controller = an update is waiting
+                // (first-ever install has no controller and needs no toast).
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    showUpdateToast(newWorker);
+                }
+            });
+        });
+    }).catch((err) => {
+        console.error('Service worker registration failed:', err);
+    });
+
+    // When the waiting worker takes over, reload once to load the new assets.
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+    });
+}
+
+/**
+ * Show a dismissible "update ready" toast with a reload action.
+ */
+function showUpdateToast(waitingWorker) {
+    if (document.querySelector('.update-toast')) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'update-toast glass';
+
+    const message = document.createElement('span');
+    message.textContent = 'A new version is ready.';
+
+    const reloadBtn = document.createElement('button');
+    reloadBtn.className = 'btn btn-primary btn-sm';
+    reloadBtn.textContent = 'Reload';
+    reloadBtn.addEventListener('click', () => {
+        waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+    });
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'btn btn-secondary btn-sm';
+    dismissBtn.textContent = 'Later';
+    dismissBtn.addEventListener('click', () => toast.remove());
+
+    toast.appendChild(message);
+    toast.appendChild(reloadBtn);
+    toast.appendChild(dismissBtn);
+    document.body.appendChild(toast);
 }
 
 /**

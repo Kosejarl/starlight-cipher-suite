@@ -1040,6 +1040,23 @@ textarea {
 }
 
 /* Responsive Rules */
+/* Service worker "update ready" toast */
+.update-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--color-text-primary);
+    z-index: 1100;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
 @media (max-width: 950px) {
     .text-console {
         grid-template-columns: 1fr;
