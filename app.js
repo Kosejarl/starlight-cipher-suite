@@ -736,87 +736,106 @@ function bindEvents() {
         }
     });
 
-    // Dynamic validation & password-first lock handlers for the Transaction Password field
-    elements.basementenTxPassword.addEventListener('input', async (e) => {
+    // Dynamic validation & password-first lock handlers for the Transaction Password field.
+    // Cheap checks (empty/length) run on every keystroke, but the PBKDF2-based checks
+    // (600k iterations each) are debounced so they only run after typing pauses —
+    // previously they ran per keystroke and could freeze the UI on slower machines.
+    let txPasswordDebounce = null;
+    const TX_PASSWORD_DEBOUNCE_MS = 400;
+
+    const lockCompositionPanel = (placeholder) => {
+        elements.textInput.disabled = true;
+        elements.textInput.value = '';
+        elements.textInput.placeholder = placeholder;
+    };
+
+    elements.basementenTxPassword.addEventListener('input', (e) => {
         const pwd = e.target.value;
         elements.basementenTxError.textContent = '';
         elements.basementenTxError.style.color = '#ef4444';
+        if (txPasswordDebounce) clearTimeout(txPasswordDebounce);
 
         if (state.mode === 'encode') {
             if (!pwd) {
                 basementenTxValid = false;
-                elements.textInput.disabled = true;
-                elements.textInput.value = '';
-                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
+                lockCompositionPanel("Please enter a unique Transaction Password in the control panel to unlock composition...");
                 return;
             }
 
             if (pwd.length < 10 || pwd.length > 32) {
                 elements.basementenTxError.textContent = 'Password must be between 10 and 32 characters.';
                 basementenTxValid = false;
-                elements.textInput.disabled = true;
-                elements.textInput.value = '';
-                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
+                lockCompositionPanel("Please enter a unique Transaction Password in the control panel to unlock composition...");
                 return;
             }
 
-            const isMaster = await isMasterPassword(pwd);
-            if (isMaster) {
-                elements.basementenTxError.textContent = 'Transaction password cannot be the same as the master password.';
-                basementenTxValid = false;
-                elements.textInput.disabled = true;
-                elements.textInput.value = '';
-                elements.textInput.placeholder = "Please enter a unique Transaction Password in the control panel to unlock composition...";
-                return;
-            }
+            txPasswordDebounce = setTimeout(async () => {
+                const isMaster = await isMasterPassword(pwd);
+                // Ignore stale results if the field changed while deriving
+                if (elements.basementenTxPassword.value !== pwd) return;
 
-            basementenTxValid = true;
-            elements.textInput.disabled = false;
-            elements.textInput.placeholder = "Type or paste your text here...";
+                if (isMaster) {
+                    elements.basementenTxError.textContent = 'Transaction password cannot be the same as the master password.';
+                    basementenTxValid = false;
+                    lockCompositionPanel("Please enter a unique Transaction Password in the control panel to unlock composition...");
+                    return;
+                }
+
+                basementenTxValid = true;
+                elements.textInput.disabled = false;
+                elements.textInput.placeholder = "Type or paste your text here...";
+            }, TX_PASSWORD_DEBOUNCE_MS);
         } else {
             // Decode mode: find log entry by password first
             if (!pwd) {
                 basementenDecryptedKey = null;
-                elements.textInput.disabled = true;
-                elements.textInput.value = '';
-                elements.textInput.placeholder = "Please enter the Transaction Password in the control panel to load the key...";
+                lockCompositionPanel("Please enter the Transaction Password in the control panel to load the key...");
                 elements.basementenAutoRecognizePanel.classList.add('hidden');
                 return;
             }
 
-            const matched = await searchHistoryByPassword(pwd);
-            if (matched) {
-                basementenDecryptedKey = matched.decryptedKey;
-                elements.textInput.disabled = false;
-                elements.textInput.placeholder = "Enter ciphertext to decrypt...";
-                
-                elements.basementenAutoRecognizePanel.classList.remove('hidden');
-                elements.basementenAutoRecognizePanel.style.background = 'rgba(16, 185, 129, 0.08)';
-                elements.basementenAutoRecognizePanel.style.border = '1px solid rgba(16, 185, 129, 0.2)';
-                elements.basementenAutoStatusTitle.style.color = '#10b981';
-                elements.basementenAutoStatusTitle.innerHTML = `<i data-lucide="check-circle" style="width: 14px; height: 14px;"></i> Key Recovered Successfully`;
-                elements.basementenAutoStatusDesc.style.color = 'var(--color-text-secondary)';
-                elements.basementenAutoStatusDesc.textContent = `Found matching log entry from ${matched.item.timestamp}. Ready to decrypt.`;
-                if (window.lucide) window.lucide.createIcons();
-
-                runConversion();
-            } else {
-                basementenDecryptedKey = null;
-                elements.textInput.disabled = true;
-                elements.textInput.value = '';
-                elements.textInput.placeholder = "Please enter the Transaction Password in the control panel to load the key...";
-                
-                elements.basementenAutoRecognizePanel.classList.remove('hidden');
-                elements.basementenAutoRecognizePanel.style.background = 'rgba(239, 68, 68, 0.08)';
-                elements.basementenAutoRecognizePanel.style.border = '1px solid rgba(239, 68, 68, 0.2)';
-                elements.basementenAutoStatusTitle.style.color = '#ef4444';
-                elements.basementenAutoStatusTitle.innerHTML = `<i data-lucide="x-circle" style="width: 14px; height: 14px;"></i> Key Not Found`;
-                elements.basementenAutoStatusDesc.style.color = 'var(--color-text-secondary)';
-                elements.basementenAutoStatusDesc.textContent = "No matching transaction log found for this password.";
-                if (window.lucide) window.lucide.createIcons();
-            }
+            txPasswordDebounce = setTimeout(() => runDecodePasswordSearch(pwd), TX_PASSWORD_DEBOUNCE_MS);
         }
     });
+
+    // Debounced decode-mode lookup: try the password against each vault entry
+    // (one PBKDF2 derivation per entry, so never run this per keystroke).
+    async function runDecodePasswordSearch(pwd) {
+        const matched = await searchHistoryByPassword(pwd);
+        // Ignore stale results if the field changed while deriving
+        if (elements.basementenTxPassword.value !== pwd) return;
+
+        if (matched) {
+            basementenDecryptedKey = matched.decryptedKey;
+            elements.textInput.disabled = false;
+            elements.textInput.placeholder = "Enter ciphertext to decrypt...";
+
+            elements.basementenAutoRecognizePanel.classList.remove('hidden');
+            elements.basementenAutoRecognizePanel.style.background = 'rgba(16, 185, 129, 0.08)';
+            elements.basementenAutoRecognizePanel.style.border = '1px solid rgba(16, 185, 129, 0.2)';
+            elements.basementenAutoStatusTitle.style.color = '#10b981';
+            elements.basementenAutoStatusTitle.innerHTML = `<i data-lucide="check-circle" style="width: 14px; height: 14px;"></i> Key Recovered Successfully`;
+            elements.basementenAutoStatusDesc.style.color = 'var(--color-text-secondary)';
+            elements.basementenAutoStatusDesc.textContent = `Found matching log entry from ${matched.item.timestamp}. Ready to decrypt.`;
+            if (window.lucide) window.lucide.createIcons();
+
+            runConversion();
+        } else {
+            basementenDecryptedKey = null;
+            elements.textInput.disabled = true;
+            elements.textInput.value = '';
+            elements.textInput.placeholder = "Please enter the Transaction Password in the control panel to load the key...";
+
+            elements.basementenAutoRecognizePanel.classList.remove('hidden');
+            elements.basementenAutoRecognizePanel.style.background = 'rgba(239, 68, 68, 0.08)';
+            elements.basementenAutoRecognizePanel.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            elements.basementenAutoStatusTitle.style.color = '#ef4444';
+            elements.basementenAutoStatusTitle.innerHTML = `<i data-lucide="x-circle" style="width: 14px; height: 14px;"></i> Key Not Found`;
+            elements.basementenAutoStatusDesc.style.color = 'var(--color-text-secondary)';
+            elements.basementenAutoStatusDesc.textContent = "No matching transaction log found for this password.";
+            if (window.lucide) window.lucide.createIcons();
+        }
+    }
 
     // Save transaction button click handler
     elements.basementenSaveTx.addEventListener('click', async () => {
