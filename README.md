@@ -4,6 +4,14 @@ An offline-first cipher encoder/decoder with step-by-step process visualization.
 
 Created by Zethrel.
 
+## ⬇️ Get the app (no setup needed)
+
+**Windows:** [**Download BasementenAegis.exe**](https://github.com/Zethrel/Basementen-Aegis/releases/latest/download/BasementenAegis.exe) — save it anywhere and double-click it. No installation, no Python, no commands. (All versions are on the [releases page](https://github.com/Zethrel/Basementen-Aegis/releases).)
+
+> **First launch:** Windows may warn about an unrecognized publisher (the app is self-signed, not registered with Microsoft). Click **More info → Run anyway**. The app then offers a one-time certificate prompt — accepting it stops the warnings on that PC. Requires the Edge WebView2 runtime, which is built into Windows 10 and 11.
+
+**Or skip the download entirely:** use it in your browser at [zethrel.github.io/Basementen-Aegis](https://zethrel.github.io/Basementen-Aegis/) — on a phone or desktop you can install it as an app from the browser menu, and it keeps working offline.
+
 ## Ciphers
 
 Caesar · ROT13 · Atbash · Vigenère · Rail Fence · Binary Converter · A1Z26 · Binary Reverse (custom) · Scandi Caesar (Danish/Norwegian/Swedish alphabets) · Elder Futhark runes · Morse code (with Æ/Ø/Å) · Anagram Helper · Caesar Brute Force helper (cracks unknown shifts, English or Scandinavian alphabets)
@@ -21,7 +29,7 @@ Plus **The Basementen** — a password-protected vault cipher. Messages are encr
 
 **Web:** open `index.html` directly, or serve the folder with any static file server.
 
-**Desktop (Windows, pre-built):** run `dist/BasementenAegis.exe`. Requires the Edge WebView2 runtime (included by default on Windows 10/11).
+**Desktop (Windows, pre-built):** grab the exe from the [download link above](#%EF%B8%8F-get-the-app-no-setup-needed). Requires the Edge WebView2 runtime (included by default on Windows 10/11).
 
 **Desktop (build it yourself):**
 ```bash
@@ -40,6 +48,8 @@ python -m PyInstaller BasementenAegis.spec --noconfirm
 ./sign_app.ps1
 ```
 The built app lands in `dist/`. Always build and sign on the same machine — the signing certificate lives in that machine's user certificate store, and a new machine would mint a new identity that users have to re-trust.
+
+To publish a build, don't commit it — attach `dist/BasementenAegis.exe` to a new [GitHub Release](https://github.com/Zethrel/Basementen-Aegis/releases/new) instead. The README's download link always points at the latest release automatically.
 
 ## Privacy
 
