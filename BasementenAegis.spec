@@ -4,6 +4,7 @@ import os
 
 datas = [
     ('index.html', '.'),
+    ('desktop.html', '.'),
     ('styles.css', '.'),
     ('app.js', '.'),
     ('dom.js', '.'),
