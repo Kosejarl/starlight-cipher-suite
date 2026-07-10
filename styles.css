@@ -4,6 +4,11 @@
 
 /* Design Tokens & Theme Variables */
 :root {
+    /* Tell the engine this is a dark UI so natively-rendered widgets —
+       above all the open <select> dropdown list, which page CSS can't
+       style — are drawn dark instead of the default light theme. */
+    color-scheme: dark;
+
     --bg-app: #090d16;
     --bg-surface: #111827;
     --bg-surface-glass: rgba(17, 24, 39, 0.6);
@@ -564,6 +569,13 @@ body::before {
 .input-text:focus, .input-number:focus, .select-dropdown:focus {
     border-color: var(--color-primary);
     box-shadow: 0 0 8px var(--color-primary-glow);
+}
+
+/* Chromium/WebView2 also honors explicit option colors in the native
+   dropdown list; keep them matching the app's dark surface. */
+.select-dropdown option {
+    background-color: var(--bg-surface);
+    color: var(--color-text-primary);
 }
 
 .info-text {
