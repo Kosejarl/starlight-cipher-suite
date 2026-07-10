@@ -46,7 +46,8 @@ export const elements = {
     inputStats: document.getElementById('input-stats'),
     outputStats: document.getElementById('output-stats'),
     
-    // Header & Actions
+    // Header, Footer & Actions
+    appVersion: document.getElementById('app-version'),
     installBtn: document.getElementById('install-btn'),
     connectionStatus: document.getElementById('connection-status'),
     connectionText: document.getElementById('connection-text'),
