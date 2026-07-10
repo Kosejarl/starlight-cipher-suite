@@ -66,6 +66,12 @@ function registerServiceWorker() {
     // it just skips offline caching (the desktop app serves over 127.0.0.1).
     if (!('serviceWorker' in navigator) || window.location.protocol === 'file:') return;
 
+    // Desktop build: the launcher opens desktop.html, which wipes any service
+    // worker + caches left by older builds and then adds this flag. The exe's
+    // bundled files are always current, so a service worker here would only
+    // reintroduce stale-cache bugs — never register one on desktop.
+    if (new URLSearchParams(window.location.search).has('desktop')) return;
+
     navigator.serviceWorker.register('sw.js').then((registration) => {
         registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;

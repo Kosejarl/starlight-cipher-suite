@@ -141,7 +141,7 @@ def main():
     log(f"Resource path: {resource_path('.')}")
 
     # Check if files exist in the resource directory
-    expected_files = ['index.html', 'styles.css', 'app.js', 'dom.js', 'state.js', 'ui.js',
+    expected_files = ['index.html', 'desktop.html', 'styles.css', 'app.js', 'dom.js', 'state.js', 'ui.js',
                        'registry.js', 'history.js', 'vault.js', 'ciphers.js', 'sw.js',
                        'manifest.json', 'logo.png', 'icon.png', 'icon-maskable.png', 'lucide.min.js', 'qrcode.js',
                        'argon2-bundled.min.js', 'argon2-worker.js',
@@ -171,10 +171,13 @@ def main():
     
     # Create pywebview window pointing to 127.0.0.1 (IPv4 loopback)
     # This avoids IPv6 DNS resolution issues with 'localhost' on Windows
-    log(f"Creating webview window pointing to http://127.0.0.1:{PORT}")
+    # desktop.html clears service-worker caches left by older builds, then
+    # loads the app with the service worker disabled (bundled files are
+    # always current on desktop; a service worker would only serve stale).
+    log(f"Creating webview window pointing to http://127.0.0.1:{PORT}/desktop.html")
     webview.create_window(
         title="Basementen Aegis",
-        url=f"http://127.0.0.1:{PORT}",
+        url=f"http://127.0.0.1:{PORT}/desktop.html",
         width=1200,
         height=800,
         min_size=(900, 600),

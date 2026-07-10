@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Basementen Aegis</title>
+    <style>
+        body {
+            background: #090d16;
+            color: #9ca3af;
+            font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <p>Starting Basementen Aegis&hellip;</p>
+    <script>
+        // Desktop bootstrap. The launcher serves the bundled files directly,
+        // so they are always current — but a service worker registered by an
+        // older build (including the pre-rebrand app) would shadow them with
+        // its stale cache forever. Wipe any leftover registrations and caches,
+        // then enter the app with the flag that keeps the service worker
+        // disabled on desktop (see registerServiceWorker in app.js).
+        (async () => {
+            try {
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((reg) => reg.unregister()));
+                }
+                if (window.caches && caches.keys) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map((key) => caches.delete(key)));
+                }
+            } catch (e) {
+                // Cleanup is best-effort; the app still loads without it.
+            }
+            location.replace('index.html?desktop=1');
+        })();
+    </script>
+</body>
+</html>
