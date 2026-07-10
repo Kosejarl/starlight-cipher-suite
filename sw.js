@@ -9,13 +9,14 @@
  * the new build.
  */
 
-const CACHE_VERSION = 'aegis-v29';
+const CACHE_VERSION = 'aegis-v30';
 
 const PRECACHE_URLS = [
     './',
     './index.html',
     './styles.css',
     './app.js',
+    './version.js',
     './dom.js',
     './state.js',
     './ui.js',

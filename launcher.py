@@ -141,7 +141,7 @@ def main():
     log(f"Resource path: {resource_path('.')}")
 
     # Check if files exist in the resource directory
-    expected_files = ['index.html', 'desktop.html', 'styles.css', 'app.js', 'dom.js', 'state.js', 'ui.js',
+    expected_files = ['index.html', 'desktop.html', 'styles.css', 'app.js', 'version.js', 'dom.js', 'state.js', 'ui.js',
                        'registry.js', 'vault.js', 'ciphers.js', 'sw.js',
                        'manifest.json', 'logo.png', 'icon.png', 'icon-maskable.png', 'lucide.min.js', 'qrcode.js',
                        'argon2-bundled.min.js', 'argon2-worker.js',

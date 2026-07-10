@@ -5,6 +5,7 @@
  * panel, and all cipher-agnostic event handlers.
  */
 
+import { APP_VERSION } from './version.js';
 import { CAESAR_ALPHABETS, setFullStepDetail } from './ciphers.js';
 import { elements } from './dom.js';
 import { state, loadSavedState, saveConfigState } from './state.js';
@@ -42,6 +43,9 @@ window.addEventListener('unhandledrejection', (e) => reportUnexpectedError(e.rea
  * Initialize Application
  */
 function init() {
+    // Show which release this build is (bumped in version.js per release)
+    elements.appVersion.textContent = `v${APP_VERSION}`;
+
     // Build the sidebar from the cipher registry
     renderCipherNav();
     elements.cipherBtns = document.querySelectorAll('.cipher-select-btn');

@@ -7,6 +7,7 @@ datas = [
     ('desktop.html', '.'),
     ('styles.css', '.'),
     ('app.js', '.'),
+    ('version.js', '.'),
     ('dom.js', '.'),
     ('state.js', '.'),
     ('ui.js', '.'),

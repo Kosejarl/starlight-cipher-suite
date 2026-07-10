@@ -153,6 +153,12 @@ body::before {
     pointer-events: none;
 }
 
+/* Version tag in the footer */
+.app-version {
+    font-family: var(--font-mono);
+    color: var(--color-primary);
+}
+
 .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

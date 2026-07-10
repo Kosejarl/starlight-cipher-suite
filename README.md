@@ -49,7 +49,7 @@ python -m PyInstaller BasementenAegis.spec --noconfirm
 ```
 The built app lands in `dist/`. Always build and sign on the same machine — the signing certificate lives in that machine's user certificate store, and a new machine would mint a new identity that users have to re-trust.
 
-To publish a build, don't commit it — attach `dist/BasementenAegis.exe` to a new [GitHub Release](https://github.com/Zethrel/Basementen-Aegis/releases/new) instead. The README's download link always points at the latest release automatically.
+To publish a build: bump `APP_VERSION` in `version.js` to match the new release tag (it's shown in the app's footer), rebuild, then attach `dist/BasementenAegis.exe` to a new [GitHub Release](https://github.com/Zethrel/Basementen-Aegis/releases/new) — don't commit the exe. The README's download link always points at the latest release automatically.
 
 ## Privacy
 
