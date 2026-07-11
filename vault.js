@@ -93,7 +93,7 @@ export function lockBasementenSession() {
     vaultSession.decryptedKey = null;
     autoSaveDraftId = null;
     autoSaveDraftContent = null;
-    masterCheckCache = { pwd: null, isMaster: false };
+    masterCheckCache = { pwdHash: null, isMaster: false };
     txKeyCache = new Map();
     elements.basementenKeyStatus.textContent = 'Locked [Requires Verification]';
     elements.basementenKeyStatus.classList.add('locked');
@@ -230,7 +230,9 @@ function getOrCreateTxSalt() {
 let txKeyCache = new Map();
 
 async function deriveTxKey(pwd, saltHex, kdf) {
-    const cacheKey = `${kdf}|${saltHex}|${pwd}`;
+    // Key the cache on a digest of the password, never the plaintext, so
+    // the Map retains no password strings for the session's lifetime.
+    const cacheKey = `${kdf}|${saltHex}|${await passwordDigest(pwd)}`;
     if (txKeyCache.has(cacheKey)) return txKeyCache.get(cacheKey);
     const key = await deriveKeyFromPassword(pwd, new Uint8Array(hexToBuf(saltHex)), kdf);
     txKeyCache.set(cacheKey, key);
@@ -314,14 +316,24 @@ async function searchHistoryByPassword(pwd) {
 let autoSaveDraftId = null;
 let autoSaveDraftContent = null;
 
+// Hex SHA-256 of a password. Caches key on this digest instead of the
+// plaintext string, so no password is retained in module scope for the
+// session's lifetime. (The active password is still necessarily present
+// in its DOM input while typed — this shrinks retention, not typing.)
+async function passwordDigest(pwd) {
+    const hash = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
+    return bufToHex(hash);
+}
+
 // Cache the last master-password comparison so repeated saves with the same
-// transaction password don't redo the 600k-iteration PBKDF2 derivation.
-let masterCheckCache = { pwd: null, isMaster: false };
+// transaction password don't redo the full KDF derivation.
+let masterCheckCache = { pwdHash: null, isMaster: false };
 
 async function isMasterPasswordCached(pwd) {
-    if (masterCheckCache.pwd === pwd) return masterCheckCache.isMaster;
+    const pwdHash = await passwordDigest(pwd);
+    if (masterCheckCache.pwdHash === pwdHash) return masterCheckCache.isMaster;
     const isMaster = await isMasterPassword(pwd);
-    masterCheckCache = { pwd, isMaster };
+    masterCheckCache = { pwdHash, isMaster };
     return isMaster;
 }
 
@@ -340,7 +352,9 @@ export async function saveBasementenTransaction(input, output, mode, keyUsed, cu
         return false;
     }
 
-    const draftContent = `${mode}\n${txPwd}\n${input}\n${output}`;
+    // Digest, not plaintext: the retained fingerprint must not hold the
+    // password or message content in module scope between auto-saves.
+    const draftContent = await passwordDigest(`${mode}\n${txPwd}\n${input}\n${output}`);
     if (isAutoSave && draftContent === autoSaveDraftContent) {
         return true; // Nothing changed since the last auto-save.
     }
@@ -735,7 +749,7 @@ function showBasementenSetup(previousCipher) {
             vaultSession.cryptoKey = aesKey;
             // A master password now exists; drop any "not the master password"
             // verdicts cached from before it was set.
-            masterCheckCache = { pwd: null, isMaster: false };
+            masterCheckCache = { pwdHash: null, isMaster: false };
 
             // Update UI status
             elements.basementenKeyStatus.textContent = 'Active [Secure 256-bit]';
@@ -779,7 +793,7 @@ async function migrateMasterBlobToArgon2id(password, keyString) {
         localStorage.setItem(KDF_STORAGE_KEY, 'argon2id');
         vaultSession.cryptoKey = aesKey;
         // The master password's KDF changed, so cached comparisons are stale.
-        masterCheckCache = { pwd: null, isMaster: false };
+        masterCheckCache = { pwdHash: null, isMaster: false };
     } catch (err) {
         console.error('Argon2id master blob migration failed; keeping PBKDF2 blob for now.', err);
     }
