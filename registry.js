@@ -10,6 +10,8 @@ import {
     Gronsfeld,
     Beaufort,
     Autokey,
+    Porta,
+    ADFGVX,
     KeywordSub,
     YoungerFuthark,
     FourSquare,
@@ -259,6 +261,17 @@ export const CIPHERS = [
         }
     },
     {
+        id: 'adfgvx', name: 'ADFGVX Cipher', shortName: 'ADFGVX', icon: 'grid-3x3', paramGroup: 'param-adfgvx',
+        run: (input, mode) => {
+            const gridKey = elements.adfgvxGridKey.value;
+            const transKey = elements.adfgvxTransKey.value;
+            const variant = elements.adfgvxVariant.value;
+            return mode === 'encode'
+                ? ADFGVX.encode(input, gridKey, transKey, variant)
+                : ADFGVX.decode(input, gridKey, transKey, variant);
+        }
+    },
+    {
         id: 'gronsfeld', name: 'Gronsfeld Cipher', shortName: 'Gronsfeld', icon: 'keyboard', paramGroup: 'param-gronsfeld',
         run: (input, mode, opts) => {
             const key = elements.gronsfeldKey.value;
@@ -267,6 +280,12 @@ export const CIPHERS = [
                 ? Gronsfeld.encode(input, key, variant, opts.retainPunctuation)
                 : Gronsfeld.decode(input, key, variant, opts.retainPunctuation);
         }
+    },
+    {
+        id: 'porta', name: 'Porta Cipher', shortName: 'Porta', icon: 'keyboard', paramGroup: 'param-porta',
+        run: (input, mode, opts) => mode === 'encode'
+            ? Porta.encode(input, elements.portaKey.value, opts.retainPunctuation)
+            : Porta.decode(input, elements.portaKey.value, opts.retainPunctuation)
     },
     {
         id: 'vigenere', name: 'Vigenere Cipher', shortName: 'Vigenere', icon: 'keyboard', paramGroup: 'param-vigenere',

@@ -518,6 +518,23 @@ function bindEvents() {
     });
     elements.gronsfeldVariant.addEventListener('change', () => runConversion());
 
+    // Porta keyword (letters only, English alphabet)
+    elements.portaKey.addEventListener('input', (e) => {
+        const filtered = e.target.value.replace(/[^A-Za-z]/g, '');
+        if (filtered !== e.target.value) e.target.value = filtered;
+        scheduleConversion();
+    });
+
+    // ADFGVX: grid keyword (letters incl. Scandinavian + digits), transposition
+    // keyword (letters incl. Scandinavian), and alphabet.
+    elements.adfgvxGridKey.addEventListener('input', (e) => {
+        const filtered = e.target.value.replace(/[^A-Za-z0-9ÆØÅæøåÄÖäö]/g, '');
+        if (filtered !== e.target.value) e.target.value = filtered;
+        scheduleConversion();
+    });
+    elements.adfgvxTransKey.addEventListener('input', letterKeyHandler);
+    elements.adfgvxVariant.addEventListener('change', () => runConversion());
+
     // Columnar keyword
     elements.columnarKey.addEventListener('input', () => scheduleConversion());
 

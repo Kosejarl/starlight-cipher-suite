@@ -126,6 +126,16 @@
                             </div>
                         </div>
 
+                        <!-- Porta Keyword -->
+                        <div class="param-group" id="param-porta">
+                            <label for="porta-key">Keyword:</label>
+                            <input type="text" id="porta-key" value="KEY" placeholder="Letters only" maxlength="30" class="input-text">
+                            <div class="param-info">
+                                <p class="param-info-title"><i data-lucide="info"></i> Porta Guide</p>
+                                <p>A reciprocal Vigenère variant: the alphabet is split in half and each keyword letter pair (A/B, C/D…) picks one of 13 swap rows. Because each row is its own inverse, Encode and Decode are the same operation. Uses the 26-letter alphabet only.</p>
+                            </div>
+                        </div>
+
                         <!-- Affine a & b -->
                         <div class="param-group" id="param-affine">
                             <div class="param-subfield">
@@ -327,6 +337,26 @@
                             <div class="param-info">
                                 <p class="param-info-title"><i data-lucide="info"></i> Scytale Guide</p>
                                 <p>The ancient rod cipher: write the message across this many columns, then read down each column. A keyless transposition, so any character round-trips exactly.</p>
+                            </div>
+                        </div>
+
+                        <!-- ADFGVX grid keyword + transposition keyword + Alphabet -->
+                        <div class="param-group" id="param-adfgvx">
+                            <div class="param-subfield">
+                                <label for="adfgvx-alphabet">Alphabet:</label>
+                                <select id="adfgvx-alphabet" class="select-dropdown">
+                                    <option value="en">English (26 letters + 0–9)</option>
+                                    <option value="dk-no">Danish & Norwegian (29 + 0–6)</option>
+                                    <option value="se">Swedish (29 + 0–6)</option>
+                                </select>
+                            </div>
+                            <label for="adfgvx-grid-key">Grid keyword:</label>
+                            <input type="text" id="adfgvx-grid-key" value="PRIVACY" placeholder="Letters & digits" maxlength="36" class="input-text">
+                            <label for="adfgvx-trans-key">Transposition keyword:</label>
+                            <input type="text" id="adfgvx-trans-key" value="BATTLE" placeholder="At least 2 letters" maxlength="30" class="input-text">
+                            <div class="param-info">
+                                <p class="param-info-title"><i data-lucide="info"></i> ADFGVX Guide</p>
+                                <p>The WWI field cipher in two stages: every character becomes a two-letter code on a 6×6 grid labelled A D F G V X (the grid keyword scrambles it), then that whole string is scrambled again by a columnar transposition under the second keyword. English fits 26 letters + digits 0–9; the Scandinavian grids fit their 29 letters + digits 0–6. Spaces and punctuation are dropped.</p>
                             </div>
                         </div>
 
