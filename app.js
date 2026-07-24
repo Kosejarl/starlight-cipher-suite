@@ -510,6 +510,33 @@ function bindEvents() {
     elements.bifidKey.addEventListener('input', letterKeyHandler);
     elements.bifidVariant.addEventListener('change', () => runConversion());
 
+    // Trifid keyword (English letters only) + Nihilist keywords (incl. Scandinavian)
+    elements.trifidKey.addEventListener('input', (e) => {
+        const filtered = e.target.value.replace(/[^A-Za-z]/g, '');
+        if (filtered !== e.target.value) e.target.value = filtered;
+        scheduleConversion();
+    });
+    elements.nihilistSquareKey.addEventListener('input', letterKeyHandler);
+    elements.nihilistAddKey.addEventListener('input', letterKeyHandler);
+    elements.nihilistVariant.addEventListener('change', () => runConversion());
+
+    // Hill 2×2 matrix: clamp each cell to 0-25, flag a non-invertible determinant
+    // inline, and re-run. gcd(det, 26) must be 1 for the key to be reversible.
+    const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+    const syncHillMatrix = () => {
+        const vals = [elements.hillA, elements.hillB, elements.hillC, elements.hillD].map((el) => {
+            let v = parseInt(el.value, 10);
+            if (isNaN(v)) return 0;
+            v = ((v % 26) + 26) % 26;
+            return v;
+        });
+        const det = ((vals[0] * vals[3] - vals[1] * vals[2]) % 26 + 26) % 26;
+        const invertible = gcd(det, 26) === 1;
+        elements.hillError.textContent = invertible ? '' : `Determinant ${det} shares a factor with 26 — this key can't be decoded. Avoid even values and multiples of 13.`;
+        scheduleConversion();
+    };
+    [elements.hillA, elements.hillB, elements.hillC, elements.hillD].forEach((el) => el.addEventListener('input', syncHillMatrix));
+
     // Gronsfeld numeric key (digits only) + alphabet
     elements.gronsfeldKey.addEventListener('input', (e) => {
         const filtered = e.target.value.replace(/[^0-9]/g, '');

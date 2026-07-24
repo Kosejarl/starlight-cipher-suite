@@ -772,6 +772,80 @@ export const FourSquare = {
 };
 
 /**
+ * HILL CIPHER
+ * The first cipher with sound linear-algebra footing: plaintext letter pairs are
+ * treated as 2-vectors and multiplied by a 2×2 key matrix modulo 26. Decoding
+ * multiplies by the matrix's inverse mod 26, which only exists when the
+ * determinant is coprime with 26 — so not every matrix is a valid key, and the
+ * UI flags the ones that aren't. English (mod 26) only; an odd final letter is
+ * padded with X and non-letters are dropped.
+ */
+function hillLetters(text) {
+    let letters = '';
+    for (const raw of text.toUpperCase()) {
+        if (raw >= 'A' && raw <= 'Z') letters += raw;
+    }
+    return letters;
+}
+
+function hillRun(text, matrix, direction) {
+    const m = 26;
+    const [a, b, c, d] = matrix.map((v) => ((parseInt(v, 10) || 0) % m + m) % m);
+    const det = ((a * d - b * c) % m + m) % m;
+    const detInv = modInverse(det, m);
+
+    const steps = [{
+        title: `Key Matrix (${direction === 'encode' ? 'Encode' : 'Decode'})`,
+        content: `[ ${a} ${b} ]\n[ ${c} ${d} ]\nDeterminant mod 26: ${det}${detInv === null ? ' (not invertible — decoding impossible)' : ` (invertible, inverse ${detInv})`}`
+    }];
+
+    if (detInv === null) {
+        return { result: '', steps: [{ title: 'Error', content: `The matrix determinant (${det}) is not coprime with 26, so this key can't be inverted. Choose a matrix whose determinant shares no factor with 26 (avoid even values and multiples of 13).` }] };
+    }
+
+    // Working matrix: the key for encode, its inverse for decode.
+    let e0, e1, e2, e3;
+    if (direction === 'encode') {
+        [e0, e1, e2, e3] = [a, b, c, d];
+    } else {
+        // inverse = detInv * [ d -b ; -c a ]  (mod 26)
+        e0 = (detInv * d) % m;
+        e1 = (detInv * (m - b)) % m;
+        e2 = (detInv * (m - c)) % m;
+        e3 = (detInv * a) % m;
+    }
+
+    let letters = hillLetters(text);
+    if (letters.length === 0) return { result: '', steps };
+    if (letters.length % 2 === 1) letters += 'X'; // pad an odd final letter
+
+    const details = [];
+    let result = '';
+    for (let i = 0; i < letters.length; i += 2) {
+        const x = letters.charCodeAt(i) - 65;
+        const y = letters.charCodeAt(i + 1) - 65;
+        const o1 = (e0 * x + e1 * y) % m;
+        const o2 = (e2 * x + e3 * y) % m;
+        const p = String.fromCharCode(65 + o1) + String.fromCharCode(65 + o2);
+        result += p;
+        details.push(`${letters[i]}${letters[i + 1]} [${x},${y}] → [${o1},${o2}] → ${p}`);
+    }
+
+    steps.push({ title: 'Digraph Matrix Products', content: summarizeSteps(details) });
+    const grouped = result.match(/.{1,2}/g)?.join(' ') || result;
+    return { result: grouped, steps };
+}
+
+export const Hill = {
+    encode(text, matrix) {
+        return hillRun(text, matrix, 'encode');
+    },
+    decode(text, matrix) {
+        return hillRun(text.replace(/\s+/g, ''), matrix, 'decode');
+    }
+};
+
+/**
  * POLYBIUS SQUARE
  * Each letter → its row+column on a grid, five columns wide. English uses the
  * classic 5×5 (I/J share cell 24); the Scandinavian variants keep all 29
@@ -946,6 +1020,181 @@ export const Bifid = {
     },
     decode(text, keyword, variant) {
         return bifidRun(text.replace(/\s+/g, ''), keyword, variant, 'decode');
+    }
+};
+
+/**
+ * TRIFID CIPHER
+ * Bifid's three-dimensional sibling: each symbol is a point in a 3×3×3 cube, so
+ * it has three coordinates (layer, row, column) instead of two. The layers,
+ * rows and columns are written out in three lines and re-read in groups of
+ * three, spreading each symbol's coordinates even further across the message.
+ * The 27 cells hold the 26 letters plus a full stop, so — unlike the other grid
+ * ciphers — Trifid is English only (26 doesn't extend cleanly to a cube). The
+ * keyword seeds the cube; other characters are dropped.
+ */
+const TRIFID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ.'; // 27 symbols for the 3×3×3 cube
+
+function trifidSquare(keyword) {
+    const seen = new Set();
+    let out = '';
+    for (const raw of ((keyword || '') + TRIFID_ALPHABET).toUpperCase()) {
+        if (TRIFID_ALPHABET.indexOf(raw) !== -1 && !seen.has(raw)) { seen.add(raw); out += raw; }
+    }
+    return out; // a permutation of TRIFID_ALPHABET, length 27
+}
+
+function trifidRun(text, keyword, direction) {
+    const square = trifidSquare(keyword);
+    const encoding = direction === 'encode';
+
+    const layerLines = [];
+    for (let l = 0; l < 3; l++) {
+        const lines = [];
+        for (let r = 0; r < 3; r++) lines.push(square.slice(l * 9 + r * 3, l * 9 + r * 3 + 3).split('').join(' '));
+        layerLines.push(`Layer ${l + 1}:\n${lines.join('\n')}`);
+    }
+    const steps = [{
+        title: `Key Cube (${encoding ? 'Encode' : 'Decode'})`,
+        content: `Keyword: ${keyword || '(none)'}\nThe 27th cell is a full stop (.).\n\n${layerLines.join('\n\n')}`
+    }];
+
+    let syms = '';
+    for (const raw of text.toUpperCase()) {
+        if (square.indexOf(raw) !== -1) syms += raw;
+    }
+    if (!syms) return { result: '', steps };
+
+    const coords = [...syms].map((ch) => {
+        const i = square.indexOf(ch);
+        return [Math.floor(i / 9), Math.floor((i % 9) / 3), i % 3];
+    });
+    const n = coords.length;
+
+    let result = '';
+    const details = [];
+    if (encoding) {
+        // Read layers, then rows, then columns as one stream; re-group in threes.
+        const stream = coords.map((t) => t[0]).concat(coords.map((t) => t[1]), coords.map((t) => t[2]));
+        for (let i = 0; i < n; i++) {
+            const idx = stream[3 * i] * 9 + stream[3 * i + 1] * 3 + stream[3 * i + 2];
+            result += square[idx];
+            details.push(`(${stream[3 * i] + 1},${stream[3 * i + 1] + 1},${stream[3 * i + 2] + 1}) → '${square[idx]}'`);
+        }
+    } else {
+        // Cipher coordinates in order, split back into layers / rows / columns.
+        const stream = [];
+        for (const [l, r, c] of coords) stream.push(l, r, c);
+        const layers = stream.slice(0, n), rows = stream.slice(n, 2 * n), cols = stream.slice(2 * n);
+        for (let i = 0; i < n; i++) {
+            const idx = layers[i] * 9 + rows[i] * 3 + cols[i];
+            result += square[idx];
+            details.push(`(${layers[i] + 1},${rows[i] + 1},${cols[i] + 1}) → '${square[idx]}'`);
+        }
+    }
+
+    steps.push({ title: encoding ? 'Re-grouped Coordinates' : 'Recovered Symbols', content: summarizeSteps(details) });
+    return { result, steps };
+}
+
+export const Trifid = {
+    encode(text, keyword) {
+        return trifidRun(text, keyword, 'encode');
+    },
+    decode(text, keyword) {
+        return trifidRun(text.replace(/\s+/g, ''), keyword, 'decode');
+    }
+};
+
+/**
+ * NIHILIST CIPHER
+ * A Polybius square turns each letter into a two-digit number (its row and
+ * column), then the digits of a repeating key phrase — encoded on the same
+ * square — are added on top. The result is a stream of numbers, most in the
+ * 20s–110s. Two keywords: one seeds the square, one is the additive key.
+ * English uses the classic 5×5 (I/J merged); the Scandinavian sets keep all 29
+ * letters on a 6×5 grid, giving row digits up to 6. Non-letters are dropped.
+ */
+function nihilistNumber(ch, square, cols) {
+    const idx = square.indexOf(ch);
+    if (idx === -1) return null;
+    return (Math.floor(idx / cols) + 1) * 10 + (idx % cols + 1);
+}
+
+function nihilistKeyNumbers(key, square, cols, foldsJ) {
+    const nums = [];
+    for (const raw of (key || '').toUpperCase()) {
+        const c = foldsJ && raw === 'J' ? 'I' : raw;
+        const num = nihilistNumber(c, square, cols);
+        if (num !== null) nums.push(num);
+    }
+    return nums;
+}
+
+function nihilistRun(text, squareKey, addKey, variant, direction) {
+    const seq = polybiusSequence(variant);
+    const square = bifidSquare(squareKey, seq); // keyword-seeded, folds J for English
+    const foldsJ = seq.indexOf('J') === -1;
+    const cols = 5;
+    const keyNums = nihilistKeyNumbers(addKey, square, cols, foldsJ);
+    if (keyNums.length === 0) {
+        return { result: '', steps: [{ title: 'Error', content: 'The additive key has no letters on the grid. Output cleared.' }] };
+    }
+    const encoding = direction === 'encode';
+
+    const rowsN = Math.ceil(square.length / cols);
+    const gridLines = ['    ' + Array.from({ length: cols }, (_, c) => c + 1).join(' ')];
+    for (let r = 0; r < rowsN; r++) gridLines.push(`${r + 1} | ` + square.slice(r * cols, r * cols + cols).split('').join(' '));
+    const steps = [{
+        title: `Configuration (${encoding ? 'Encode' : 'Decode'})`,
+        content: `Square keyword: ${squareKey || '(none)'}\nAdditive key: ${addKey}\n${foldsJ ? 'I and J share a cell.\n' : ''}\n${gridLines.join('\n')}`
+    }];
+
+    const details = [];
+    if (encoding) {
+        const nums = [];
+        let k = 0;
+        for (const raw of text.toUpperCase()) {
+            const c = foldsJ && raw === 'J' ? 'I' : raw;
+            const pn = nihilistNumber(c, square, cols);
+            if (pn === null) continue;
+            const kn = keyNums[k % keyNums.length];
+            const sum = pn + kn;
+            nums.push(sum);
+            details.push(`'${raw}' (${pn}) + key ${kn} → ${sum}`);
+            k++;
+        }
+        if (nums.length === 0) return { result: '', steps };
+        steps.push({ title: 'Add Key Numbers', content: summarizeSteps(details) });
+        return { result: nums.join(' '), steps };
+    }
+
+    // Decode: parse numbers, subtract the key stream, look up on the square.
+    const tokens = text.trim().split(/\s+/).filter((t) => t !== '');
+    if (tokens.length === 0) return { result: '', steps: [{ title: 'Status', content: 'No Nihilist numbers found.' }] };
+    let result = '';
+    let k = 0;
+    for (const token of tokens) {
+        if (!/^\d{2,3}$/.test(token)) { result += '?'; details.push(`'${token}' invalid → '?'`); continue; }
+        const kn = keyNums[k % keyNums.length];
+        const pn = parseInt(token, 10) - kn;
+        const row = Math.floor(pn / 10), col = pn % 10;
+        const idx = (row - 1) * cols + (col - 1);
+        const letter = (col >= 1 && col <= cols && row >= 1 && idx >= 0 && idx < square.length) ? square[idx] : null;
+        result += letter || '?';
+        details.push(`${token} − key ${kn} = ${pn} → '${letter || '?'}'`);
+        k++;
+    }
+    steps.push({ title: 'Subtract Key Numbers', content: summarizeSteps(details) });
+    return { result, steps };
+}
+
+export const Nihilist = {
+    encode(text, squareKey, addKey, variant) {
+        return nihilistRun(text, squareKey, addKey, variant, 'encode');
+    },
+    decode(text, squareKey, addKey, variant) {
+        return nihilistRun(text, squareKey, addKey, variant, 'decode');
     }
 };
 

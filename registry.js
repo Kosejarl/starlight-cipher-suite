@@ -16,6 +16,9 @@ import {
     YoungerFuthark,
     FourSquare,
     Bifid,
+    Trifid,
+    Nihilist,
+    Hill,
     Affine,
     Playfair,
     Polybius,
@@ -221,6 +224,23 @@ export const CIPHERS = [
         }
     },
     {
+        id: 'trifid', name: 'Trifid Cipher', shortName: 'Trifid', icon: 'box', paramGroup: 'param-trifid',
+        run: (input, mode) => mode === 'encode'
+            ? Trifid.encode(input, elements.trifidKey.value)
+            : Trifid.decode(input, elements.trifidKey.value)
+    },
+    {
+        id: 'nihilist', name: 'Nihilist Cipher', shortName: 'Nihilist', icon: 'grid-3x3', paramGroup: 'param-nihilist',
+        run: (input, mode) => {
+            const squareKey = elements.nihilistSquareKey.value;
+            const addKey = elements.nihilistAddKey.value;
+            const variant = elements.nihilistVariant.value;
+            return mode === 'encode'
+                ? Nihilist.encode(input, squareKey, addKey, variant)
+                : Nihilist.decode(input, squareKey, addKey, variant);
+        }
+    },
+    {
         id: 'foursquare', name: 'Four-Square Cipher', shortName: 'Four-Square', icon: 'grid-3x3', paramGroup: 'param-foursquare',
         run: (input, mode) => {
             const key1 = elements.foursquareKey1.value;
@@ -229,6 +249,15 @@ export const CIPHERS = [
             return mode === 'encode'
                 ? FourSquare.encode(input, key1, key2, variant)
                 : FourSquare.decode(input, key1, key2, variant);
+        }
+    },
+    {
+        id: 'hill', name: 'Hill Cipher', shortName: 'Hill', icon: 'grid-2x2', paramGroup: 'param-hill',
+        run: (input, mode) => {
+            const matrix = [elements.hillA.value, elements.hillB.value, elements.hillC.value, elements.hillD.value];
+            return mode === 'encode'
+                ? Hill.encode(input, matrix)
+                : Hill.decode(input, matrix);
         }
     },
     {

@@ -222,6 +222,52 @@
                             </div>
                         </div>
 
+                        <!-- Trifid keyword -->
+                        <div class="param-group" id="param-trifid">
+                            <label for="trifid-key">Keyword:</label>
+                            <input type="text" id="trifid-key" value="FELIX" placeholder="Letters only" maxlength="30" class="input-text">
+                            <div class="param-info">
+                                <p class="param-info-title"><i data-lucide="info"></i> Trifid Guide</p>
+                                <p>Bifid in three dimensions: each symbol sits in a 3×3×3 cube, so it has three coordinates that get written out and re-read in groups of three — spreading it even further. The 27 cells hold the 26 letters plus a full stop, so Trifid is English only.</p>
+                            </div>
+                        </div>
+
+                        <!-- Nihilist square keyword + additive key + Alphabet -->
+                        <div class="param-group" id="param-nihilist">
+                            <div class="param-subfield">
+                                <label for="nihilist-alphabet">Alphabet:</label>
+                                <select id="nihilist-alphabet" class="select-dropdown">
+                                    <option value="en">English (5×5 grid)</option>
+                                    <option value="dk-no">Danish & Norwegian (6×5, +Æ Ø Å)</option>
+                                    <option value="se">Swedish (6×5, +Å Ä Ö)</option>
+                                </select>
+                            </div>
+                            <label for="nihilist-square-key">Square keyword:</label>
+                            <input type="text" id="nihilist-square-key" value="ZEBRAS" placeholder="Letters only" maxlength="30" class="input-text">
+                            <label for="nihilist-add-key">Additive key:</label>
+                            <input type="text" id="nihilist-add-key" value="RUSSIAN" placeholder="Letters only" maxlength="30" class="input-text">
+                            <div class="param-info">
+                                <p class="param-info-title"><i data-lucide="info"></i> Nihilist Guide</p>
+                                <p>Each letter becomes a two-digit number from its position on a keyword Polybius square, then the numbers of a repeating key phrase are added on top. The output is a stream of numbers. English uses a 5×5 grid (I/J merged); the Scandinavian sets use a 6×5 grid.</p>
+                            </div>
+                        </div>
+
+                        <!-- Hill 2×2 matrix -->
+                        <div class="param-group" id="param-hill">
+                            <label>Key matrix (2×2, mod 26):</label>
+                            <div class="hill-matrix">
+                                <input type="number" id="hill-a" value="3" min="0" max="25" class="input-number" aria-label="Matrix row 1 column 1">
+                                <input type="number" id="hill-b" value="3" min="0" max="25" class="input-number" aria-label="Matrix row 1 column 2">
+                                <input type="number" id="hill-c" value="2" min="0" max="25" class="input-number" aria-label="Matrix row 2 column 1">
+                                <input type="number" id="hill-d" value="5" min="0" max="25" class="input-number" aria-label="Matrix row 2 column 2">
+                            </div>
+                            <span class="param-error" id="hill-error" role="alert"></span>
+                            <div class="param-info">
+                                <p class="param-info-title"><i data-lucide="info"></i> Hill Guide</p>
+                                <p>Letter pairs are multiplied by a 2×2 key matrix modulo 26. Decoding uses the matrix's inverse, which only exists when the determinant shares no factor with 26 — so avoid even values and multiples of 13. English only; an odd final letter is padded with X.</p>
+                            </div>
+                        </div>
+
                         <!-- Polybius Alphabet -->
                         <div class="param-group" id="param-polybius">
                             <div class="param-subfield">
