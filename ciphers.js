@@ -409,6 +409,49 @@ export const Autokey = {
 };
 
 /**
+ * PORTA CIPHER
+ * A reciprocal Vigenère variant on the classic 26-letter alphabet. The alphabet
+ * is split in half (A–M / N–Z); each keyword letter pair (A/B, C/D, …) selects
+ * one of 13 substitution rows that swap a letter between the two halves. Because
+ * every row is its own inverse, encoding and decoding are the identical
+ * operation. English letters only (the half-split needs an even alphabet, so the
+ * 29-letter Scandinavian sets don't apply); the keyword cycles over letters.
+ */
+function portaRun(text, key, retainPunctuation) {
+    key = (key || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+    if (!key) {
+        return { result: '', steps: [{ title: 'Error', content: 'Keyword is empty or invalid. Provide a key with letters. Output cleared.' }] };
+    }
+    const steps = [{
+        title: 'Configuration',
+        content: `Keyword: ${key}\nReciprocal — Encode and Decode are the same operation.\nRetain Punctuation: ${retainPunctuation ? 'Yes' : 'No'}`
+    }];
+
+    let keyIdx = 0;
+    const { result, letterSteps } = processChars(text, retainPunctuation, (char) => {
+        if (!isLetter(char)) return null;
+        const isUppercase = isUpper(char);
+        const p = getAlphabetIndex(char); // 0-25
+        const keyChar = key[keyIdx % key.length];
+        const row = Math.floor(getAlphabetIndex(keyChar) / 2); // 0-12
+        // Reciprocal map: first half → shifted second half, and vice versa.
+        const c = p < 13 ? 13 + (p + row) % 13 : ((p - 13 - row) % 13 + 13) % 13;
+        const outChar = getLetterFromIndex(c, isUppercase);
+        keyIdx++; // advance the key only on letters
+        return { char: outChar, step: `'${char}' + key '${keyChar}' (row ${row}) -> '${outChar}'` };
+    });
+
+    steps.push({ title: 'Character Processing', content: summarizeSteps(letterSteps) });
+    return { result, steps };
+}
+
+export const Porta = {
+    encode(text, key, retainPunctuation) { return portaRun(text, key, retainPunctuation); },
+    // Reciprocal: decoding is identical to encoding with the same keyword.
+    decode(text, key, retainPunctuation) { return portaRun(text, key, retainPunctuation); }
+};
+
+/**
  * KEYWORD SUBSTITUTION (monoalphabetic)
  * Build a scrambled cipher alphabet by writing the keyword first (dropping
  * repeats) then the remaining letters in order, and map plain→cipher letter
@@ -1099,6 +1142,126 @@ export const Scytale = {
             }
         }
         return { result, steps: [{ title: 'Configuration', content: `Columns (rod size): ${cols}` }] };
+    }
+};
+
+/**
+ * ADFGVX CIPHER
+ * The WWI German field cipher: a fractionating substitution followed by a keyed
+ * columnar transposition. Each character is looked up on a 6×6 keyword-seeded
+ * grid whose rows and columns are labelled A D F G V X, becoming a two-letter
+ * code; the whole ADFGVX string is then written under a transposition keyword
+ * and its columns read out in alphabetical order. The 36 cells hold letters plus
+ * digits — English fits 26 letters and 0–9; the Scandinavian sets fit their 29
+ * letters and 0–6. Characters not on the grid (spaces, punctuation) are dropped,
+ * so decoding is text-only.
+ */
+const ADFGVX_LABELS = 'ADFGVX';
+
+function adfgvxFill(variant) {
+    const letters = (CAESAR_ALPHABETS[variant] || CAESAR_ALPHABETS['en']).upper;
+    return (letters + '0123456789').slice(0, 36); // 36 cells for the 6×6 grid
+}
+
+function adfgvxSquare(keyword, fill) {
+    const seen = new Set();
+    let out = '';
+    for (const raw of ((keyword || '') + fill).toUpperCase()) {
+        if (fill.indexOf(raw) !== -1 && !seen.has(raw)) { seen.add(raw); out += raw; }
+    }
+    return out; // a permutation of `fill`, length 36
+}
+
+function adfgvxGridLines(square) {
+    const lines = ['    ' + ADFGVX_LABELS.split('').join(' ')];
+    for (let r = 0; r < 6; r++) {
+        lines.push(`${ADFGVX_LABELS[r]} | ` + square.slice(r * 6, r * 6 + 6).split('').join(' '));
+    }
+    return lines.join('\n');
+}
+
+function adfgvxRun(text, gridKey, transKey, variant, direction) {
+    const key = (transKey || '').toUpperCase();
+    if (key.length < 2) {
+        return { result: '', steps: [{ title: 'Error', content: 'Enter a transposition keyword of at least 2 characters.' }] };
+    }
+    const fill = adfgvxFill(variant);
+    const square = adfgvxSquare(gridKey, fill);
+    const encoding = direction === 'encode';
+    const steps = [{
+        title: `Key Square (${encoding ? 'Encode' : 'Decode'})`,
+        content: `Grid keyword: ${gridKey || '(none)'}\nTransposition keyword: ${key}\n\n${adfgvxGridLines(square)}`
+    }];
+
+    if (encoding) {
+        // 1. Fractionating substitution → ADFGVX letter pairs.
+        let frac = '';
+        const subDetails = [];
+        for (const raw of text.toUpperCase()) {
+            const idx = square.indexOf(raw);
+            if (idx === -1) continue; // drop spaces / punctuation / off-grid chars
+            const code = ADFGVX_LABELS[Math.floor(idx / 6)] + ADFGVX_LABELS[idx % 6];
+            frac += code;
+            subDetails.push(`'${raw}' → ${code}`);
+        }
+        if (!frac) return { result: '', steps };
+        steps.push({ title: 'Fractionation', content: summarizeSteps(subDetails) });
+
+        // 2. Keyed columnar transposition of the ADFGVX string.
+        const w = key.length, n = frac.length;
+        const order = columnOrder(key);
+        let result = '';
+        const colDetails = [];
+        for (const c of order) {
+            let col = '';
+            for (let r = c; r < n; r += w) col += frac[r];
+            result += col;
+            colDetails.push(`Column ${c + 1} ('${key[c]}'): "${col}"`);
+        }
+        steps.push({ title: 'Columnar Transposition', content: summarizeSteps(colDetails) });
+        const grouped = result.match(/.{1,5}/g)?.join(' ') || result;
+        return { result: grouped, steps };
+    }
+
+    // Decode: 1. undo the columnar transposition.
+    const clean = text.replace(/[^ADFGVX]/gi, '').toUpperCase();
+    const w = key.length, n = clean.length;
+    const order = columnOrder(key);
+    const cols = [];
+    let pos = 0;
+    for (const c of order) {
+        const h = columnHeight(c, n, w);
+        cols[c] = clean.slice(pos, pos + h);
+        pos += h;
+    }
+    let frac = '';
+    const rows = Math.ceil(n / w);
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < w; c++) {
+            if (cols[c] && r < cols[c].length) frac += cols[c][r];
+        }
+    }
+
+    // 2. Pair the ADFGVX letters back into grid coordinates → characters.
+    const details = [];
+    let result = '';
+    for (let i = 0; i + 1 < frac.length; i += 2) {
+        const rIdx = ADFGVX_LABELS.indexOf(frac[i]);
+        const cIdx = ADFGVX_LABELS.indexOf(frac[i + 1]);
+        const letter = square[rIdx * 6 + cIdx];
+        result += letter || '?';
+        details.push(`${frac[i]}${frac[i + 1]} → '${letter || '?'}'`);
+    }
+    steps.push({ title: 'Recovered Characters', content: summarizeSteps(details) });
+    return { result, steps };
+}
+
+export const ADFGVX = {
+    encode(text, gridKey, transKey, variant) {
+        return adfgvxRun(text, gridKey, transKey, variant, 'encode');
+    },
+    decode(text, gridKey, transKey, variant) {
+        return adfgvxRun(text, gridKey, transKey, variant, 'decode');
     }
 };
 

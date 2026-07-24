@@ -17,6 +17,8 @@ import {
     Gronsfeld,
     Beaufort,
     Autokey,
+    Porta,
+    ADFGVX,
     KeywordSub,
     YoungerFuthark,
     FourSquare,
@@ -178,6 +180,33 @@ test('Bifid: fractionation round trips (English and Scandinavian)', () => {
     // Scandinavian 6×5 grid keeps all 29 letters distinct
     const dk = Bifid.encode('BLÅBÆRGRØD', 'NØKKEL', 'dk-no');
     assert.equal(Bifid.decode(dk.result, 'NØKKEL', 'dk-no').result, 'BLÅBÆRGRØD');
+});
+
+test('Porta: reciprocal (encode = decode), canonical row, punctuation', () => {
+    const enc = Porta.encode('DEFENDTHEEASTWALL', 'KEY', true);
+    assertShape(enc);
+    // Reciprocal: encoding the ciphertext with the same key restores plaintext
+    assert.equal(Porta.decode(enc.result, 'KEY', true).result, 'DEFENDTHEEASTWALL');
+    // Key letter A/B selects row 0: A maps to N
+    assert.equal(Porta.encode('A', 'A', true).result, 'N');
+    assert.equal(Porta.encode('A', 'B', true).result, 'N');
+    // Punctuation and case survive a round trip
+    assert.equal(Porta.decode(Porta.encode('Hello, World!', 'SECRET', true).result, 'SECRET', true).result, 'Hello, World!');
+    // Empty / non-letter key clears output rather than leaking plaintext
+    assert.equal(Porta.encode('SECRET', '123', true).result, '');
+});
+
+test('ADFGVX: fractionation + transposition round trips (letters and digits)', () => {
+    const enc = ADFGVX.encode('Attack at dawn 0800', 'PRIVACY', 'BATTLE', 'en');
+    assertShape(enc);
+    // Ciphertext is only the six label letters (grouped in fives)
+    assert.match(enc.result.replace(/\s+/g, ''), /^[ADFGVX]+$/);
+    assert.equal(ADFGVX.decode(enc.result, 'PRIVACY', 'BATTLE', 'en').result, 'ATTACKATDAWN0800');
+    // Scandinavian grid keeps all 29 letters (digits fit 0-6)
+    const dk = ADFGVX.encode('Blåbær grød 42', 'NØKKEL', 'FISK', 'dk-no');
+    assert.equal(ADFGVX.decode(dk.result, 'NØKKEL', 'FISK', 'dk-no').result, 'BLÅBÆRGRØD42');
+    // A transposition key shorter than 2 clears output
+    assert.equal(ADFGVX.encode('HELLO', 'GRID', 'A', 'en').result, '');
 });
 
 test('Beaufort: canonical value, reciprocity, and Scandinavian round trip', () => {
