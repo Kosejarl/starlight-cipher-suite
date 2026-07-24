@@ -617,6 +617,18 @@ body::before {
     box-shadow: 0 0 8px var(--color-primary-glow);
 }
 
+/* Hill cipher 2×2 key matrix: four number inputs in a compact grid. */
+.hill-matrix {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-width: 160px;
+    margin-bottom: 8px;
+}
+.hill-matrix .input-number {
+    text-align: center;
+}
+
 /* Chromium/WebView2 also honors explicit option colors in the native
    dropdown list; keep them matching the app's dark surface. */
 .select-dropdown option {

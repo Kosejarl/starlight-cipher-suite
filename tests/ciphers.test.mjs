@@ -23,6 +23,9 @@ import {
     YoungerFuthark,
     FourSquare,
     Bifid,
+    Trifid,
+    Nihilist,
+    Hill,
     Affine,
     affineCoprimes,
     Playfair,
@@ -207,6 +210,39 @@ test('ADFGVX: fractionation + transposition round trips (letters and digits)', (
     assert.equal(ADFGVX.decode(dk.result, 'NØKKEL', 'FISK', 'dk-no').result, 'BLÅBÆRGRØD42');
     // A transposition key shorter than 2 clears output
     assert.equal(ADFGVX.encode('HELLO', 'GRID', 'A', 'en').result, '');
+});
+
+test('Trifid: 3D fractionation round trips (English, keyword-seeded cube)', () => {
+    const enc = Trifid.encode('DEFENDTHEEASTWALL', 'FELIX');
+    assertShape(enc);
+    assert.equal(Trifid.decode(enc.result, 'FELIX').result, 'DEFENDTHEEASTWALL');
+    // The 27th cube cell is a full stop, so it is a valid grid symbol
+    assert.equal(Trifid.decode(Trifid.encode('END.', 'FELIX').result, 'FELIX').result, 'END.');
+});
+
+test('Nihilist: Polybius numbers plus an additive key round trip', () => {
+    const enc = Nihilist.encode('DYNAMITE', 'ZEBRAS', 'RUSSIAN', 'en');
+    assertShape(enc);
+    // Ciphertext is space-separated numbers
+    assert.match(enc.result, /^[0-9]+( [0-9]+)*$/);
+    assert.equal(Nihilist.decode(enc.result, 'ZEBRAS', 'RUSSIAN', 'en').result, 'DYNAMITE');
+    // Scandinavian 6×5 grid keeps all 29 letters
+    assert.equal(Nihilist.decode(Nihilist.encode('BLÅBÆR', 'NØKKEL', 'FISK', 'dk-no').result,
+        'NØKKEL', 'FISK', 'dk-no').result, 'BLÅBÆR');
+    // An additive key with no grid letters clears output
+    assert.equal(Nihilist.encode('SECRET', 'ZEBRAS', '1234', 'en').result, '');
+});
+
+test('Hill: 2×2 matrix over mod 26, canonical value and inverse', () => {
+    // Key [[3,3],[2,5]]: HI [7,8] -> [19,2] -> TC
+    const enc = Hill.encode('HI', [3, 3, 2, 5]);
+    assertShape(enc);
+    assert.equal(enc.result.replace(/\s+/g, ''), 'TC');
+    assert.equal(Hill.decode(enc.result, [3, 3, 2, 5]).result.replace(/\s+/g, ''), 'HI');
+    // Odd length pads with X and still round trips
+    assert.equal(Hill.decode(Hill.encode('CAT', [3, 3, 2, 5]).result, [3, 3, 2, 5]).result.replace(/\s+/g, ''), 'CATX');
+    // Determinant not coprime with 26 -> not a usable key, output cleared
+    assert.equal(Hill.encode('HELLO', [2, 4, 6, 8]).result, '');
 });
 
 test('Beaufort: canonical value, reciprocity, and Scandinavian round trip', () => {
