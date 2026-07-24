@@ -43,6 +43,39 @@ wherever the cipher's design allows.
 - **Windows desktop:** download and run `BasementenAegis.exe` from the release.
   On first launch it prompts once to trust its local signing certificate.
 
+## v1.5.0
+
+_v1.3.0–v1.5.0 were built and tagged during development but never published as
+standalone GitHub Releases — their ciphers all ship together in the v1.6.0
+public build. They're recorded here for the history._
+
+- **ADFGVX** — the WWI German field cipher: a fractionating substitution on a
+  keyword-seeded 6×6 grid (labelled A D F G V X) followed by a keyed columnar
+  transposition. English fits 26 letters + digits 0–9; the Scandinavian grids
+  fit their 29 letters + digits 0–6.
+- **Porta** — a reciprocal Vigenère variant on the 26-letter alphabet, where
+  each keyword letter pair selects one of 13 self-inverse rows, so Encode and
+  Decode are the same operation.
+
+## v1.4.0
+
+- **Bifid** — Delastelle's fractionation cipher on a keyword-seeded Polybius
+  square, spreading each letter's coordinates across the message. English 5×5,
+  Scandinavian 6×5.
+- **Four-Square** — a Playfair relative on two plaintext grids and two keyword
+  grids; doubled letters need no special handling. English 5×5, Scandinavian
+  4×7.
+- **Gronsfeld** — a Vigenère variant keyed by digits 0–9, each digit the shift
+  for its position. Scandinavian alphabets supported.
+
+## v1.3.0
+
+- **Keyword Substitution** — a monoalphabetic substitution whose cipher alphabet
+  is seeded by a keyword, then the remaining letters in order. Scandinavian
+  alphabets supported.
+- **Younger Futhark** — a lossy 16-rune long-branch transliteration mapping
+  Æ/Ø/Å and Ä/Ö onto their nearest runes.
+
 ## v1.2.0
 
 Basementen Aegis is now a focused, educational cipher toolkit.
