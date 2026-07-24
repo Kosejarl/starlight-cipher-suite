@@ -1,0 +1,71 @@
+name: Release
+
+# Push a version tag (e.g. v1.6.0) and this drafts the matching GitHub Release
+# with notes pulled from CHANGELOG.md. It intentionally creates a DRAFT: the
+# Windows exe is code-signed locally with a per-machine certificate that can't
+# live in CI, so you attach the signed dist/BasementenAegis.exe to the draft and
+# click Publish. Publishing is what makes the README's latest-release download
+# link resolve, so it must not go live without the exe.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the tag matches version.js
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          ver="v$(grep -oP "APP_VERSION = '\K[^']+" version.js)"
+          echo "Tag: $tag  |  version.js: $ver"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::Tag $tag does not match APP_VERSION ($ver). Bump version.js to match the tag before releasing."
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            BEGIN { pat = "^## v?" ver "([^0-9]|$)" }
+            $0 ~ pat { flag = 1; next }
+            flag && /^## / { exit }
+            flag { print }
+          ' CHANGELOG.md > notes.md
+          # Trim leading, then trailing, blank lines
+          sed -i -e '/./,$!d' notes.md
+          tac notes.md | sed -e '/./,$!d' | tac > notes.trim && mv notes.trim notes.md
+          if [ -s notes.md ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Extracted notes for $version:"
+            cat notes.md
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No CHANGELOG.md entry for $version; will fall back to auto-generated notes."
+          fi
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ steps.notes.outputs.found }}" = "true" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Basementen Aegis $GITHUB_REF_NAME" \
+              --notes-file notes.md \
+              --draft
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Basementen Aegis $GITHUB_REF_NAME" \
+              --generate-notes \
+              --draft
+          fi
+          echo "::notice::Draft release $GITHUB_REF_NAME created. Attach the signed dist/BasementenAegis.exe, then click Publish."
